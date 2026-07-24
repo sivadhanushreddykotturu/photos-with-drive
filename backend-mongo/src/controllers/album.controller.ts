@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { Album, type AlbumDocument } from '../models/Album.js'
 import { FileRecord, type FileRecordDocument } from '../models/FileRecord.js'
 import { ApiError } from '../utils/api-error.js'
+import { streamZipOfFiles } from '../services/zip.service.js'
 import type { AuthRequest } from '../middleware/auth.middleware.js'
 
 const createAlbumSchema = z.object({ name: z.string().trim().min(1).max(200) })
@@ -112,6 +113,22 @@ export async function patchAlbum(req: AuthRequest, res: Response, next: NextFunc
 
     await album.save()
     return res.json({ album: serializeAlbum(album) })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+// GET /albums/:id/download-zip — stream a ZIP of the whole album.
+export async function downloadAlbumZip(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const album = await findOwnedAlbum(req)
+    const files = await FileRecord.find({ _id: { $in: album.assetIds }, userId: req.user!.id, isDeleted: false }).sort({
+      createdTime: -1,
+    })
+    if (files.length === 0) throw ApiError.badRequest('ALBUM_EMPTY', 'This album has no files to download.')
+
+    const safeName = album.name.replaceAll(/[^\w\d]+/g, '-').replaceAll(/^-+|-+$/g, '') || 'album'
+    await streamZipOfFiles(files, `${safeName}.zip`, res)
   } catch (error) {
     return next(error)
   }

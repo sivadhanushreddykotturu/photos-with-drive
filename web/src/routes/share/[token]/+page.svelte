@@ -16,6 +16,7 @@
   let sharedAlbum: { name: string; assetCount: number } | undefined = $state();
   let albumFiles: PublicSharedFile[] = $state([]);
   let expiresAt: string | null = $state(null);
+  let viewingFile: PublicSharedFile | undefined = $state();
 
   onMount(async () => {
     try {
@@ -85,11 +86,10 @@
       {/if}
       <div class="grid w-full grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
         {#each albumFiles as file (file.id)}
-          <a
-            href={albumFileUrl(file.id, false)}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
             class="group relative aspect-square overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-800"
+            onclick={() => (viewingFile = file)}
           >
             <img
               src={albumFileThumbUrl(file.id)}
@@ -97,9 +97,36 @@
               class="h-full w-full object-cover transition-transform group-hover:scale-105"
               loading="lazy"
             />
-          </a>
+          </button>
         {/each}
       </div>
     {/if}
   </div>
+
+  <!-- In-page viewer: keeps visitors inside the share page instead of the raw backend URL -->
+  {#if viewingFile}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-black/90 p-4"
+      onclick={(e) => e.target === e.currentTarget && (viewingFile = undefined)}
+      onkeydown={(e) => e.key === 'Escape' && (viewingFile = undefined)}
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+    >
+      <div class="flex w-full max-w-5xl items-center justify-between gap-2 text-white">
+        <p class="truncate text-sm">{viewingFile.name}</p>
+        <Button href={albumFileUrl(viewingFile.id, true)} shape="round" size="small" leadingIcon={mdiDownloadOutline}>
+          {$t('download')}
+        </Button>
+      </div>
+      {#if viewingFile.isVideo}
+        <!-- svelte-ignore a11y_media_has_caption -->
+        <video class="max-h-[80dvh] max-w-full" src={albumFileUrl(viewingFile.id, false)} controls autoplay playsinline
+        ></video>
+      {:else}
+        <img src={albumFileUrl(viewingFile.id, false)} alt={viewingFile.name} class="max-h-[80dvh] max-w-full object-contain" />
+      {/if}
+    </div>
+  {/if}
 </AuthPageLayout>

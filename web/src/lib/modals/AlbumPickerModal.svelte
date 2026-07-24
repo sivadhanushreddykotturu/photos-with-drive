@@ -1,6 +1,6 @@
 <script lang="ts">
   import { listAlbums, createAlbum, type Album } from '$lib/api/albums';
-  import { getFileMediaUrl } from '$lib/api/files';
+  import { getFileThumbnailUrl } from '$lib/api/files';
   import { handleError } from '$lib/utils/handle-error';
   import { Button, Field, FormModal, Icon, Input, LoadingSpinner } from '@immich/ui';
   import { mdiImageAlbum, mdiPlus } from '@mdi/js';
@@ -57,7 +57,7 @@
         >
           <div class="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-gray-200 dark:bg-gray-700">
             {#if album.coverAssetId}
-              <img src={getFileMediaUrl(album.coverAssetId)} alt="" class="h-full w-full object-cover" loading="lazy" />
+              <img src={getFileThumbnailUrl(album.coverAssetId)} alt="" class="h-full w-full object-cover" loading="lazy" />
             {:else}
               <div class="flex h-full w-full items-center justify-center text-gray-400">
                 <Icon icon={mdiImageAlbum} size="24" />

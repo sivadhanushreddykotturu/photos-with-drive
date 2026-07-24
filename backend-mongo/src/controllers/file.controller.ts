@@ -23,6 +23,7 @@ import {
 } from '../services/drive.service.js'
 import { ApiError } from '../utils/api-error.js'
 import { pickUploadAccount } from '../utils/account-selector.js'
+import { streamZipOfFiles } from '../services/zip.service.js'
 import type { AuthRequest } from '../middleware/auth.middleware.js'
 
 const listQuerySchema = z.object({
@@ -216,6 +217,31 @@ export async function listFiles(req: AuthRequest, res: Response, next: NextFunct
     }
 
     return res.json({ files: files.map(serializeFile) })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+// GET /files/download-zip?ids=id1,id2,... — stream a ZIP of the given files (max 50).
+const ZIP_MAX_FILES = 50
+
+export async function downloadFilesZip(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const raw = String(req.query.ids ?? '')
+    const ids = raw
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean)
+    if (ids.length === 0) throw ApiError.badRequest('IDS_REQUIRED', 'Provide at least one file id.')
+    if (ids.length > ZIP_MAX_FILES) throw ApiError.badRequest('TOO_MANY_FILES', `ZIP downloads are limited to ${ZIP_MAX_FILES} files.`)
+
+    const files = await FileRecord.find({ _id: { $in: ids }, userId: req.user!.id, isDeleted: false }).sort({
+      createdTime: -1,
+    })
+    if (files.length === 0) throw ApiError.notFound('FILES_NOT_FOUND', 'No files found for the given ids.')
+
+    const zipName = ids.length === 1 ? `${files[0].name}.zip` : `photos-${new Date().toISOString().slice(0, 10)}.zip`
+    await streamZipOfFiles(files, zipName, res)
   } catch (error) {
     return next(error)
   }

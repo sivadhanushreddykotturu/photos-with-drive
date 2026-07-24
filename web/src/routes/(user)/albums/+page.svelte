@@ -3,7 +3,7 @@
   import UserPageLayout from '$lib/components/layouts/UserPageLayout.svelte';
   import EmptyPlaceholder from '$lib/components/shared-components/EmptyPlaceholder.svelte';
   import { listAlbums, createAlbum, deleteAlbum, type Album } from '$lib/api/albums';
-  import { getFileMediaUrl } from '$lib/api/files';
+  import { getFileThumbnailUrl } from '$lib/api/files';
   import { Route } from '$lib/route';
   import { handleError } from '$lib/utils/handle-error';
   import { Button, Field, Icon, IconButton, Input, LoadingSpinner, modalManager } from '@immich/ui';
@@ -95,7 +95,7 @@
             <div class="aspect-square w-full overflow-hidden bg-gray-200 dark:bg-gray-800">
               {#if album.coverAssetId}
                 <img
-                  src={getFileMediaUrl(album.coverAssetId)}
+                  src={getFileThumbnailUrl(album.coverAssetId)}
                   alt={album.name}
                   class="h-full w-full object-cover transition-transform group-hover:scale-105"
                   loading="lazy"

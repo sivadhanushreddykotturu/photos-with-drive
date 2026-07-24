@@ -5,13 +5,15 @@
   import Thumbnail from '$lib/components/assets/thumbnail/Thumbnail.svelte';
   import EmptyPlaceholder from '$lib/components/shared-components/EmptyPlaceholder.svelte';
   import { addAssetsToAlbum, getAlbum, removeAssetsFromAlbum, type Album } from '$lib/api/albums';
+  import { buildMediaUrl } from '$lib/api/client';
   import type { FileRecord } from '$lib/api/types';
   import { mediaStore } from '$lib/managers/timeline-manager/internal/media-store.svelte';
   import { Route } from '$lib/route';
   import { openFileUploadDialog } from '$lib/utils/file-uploader';
+  import { downloadUrl } from '$lib/utils';
   import { handleError } from '$lib/utils/handle-error';
   import { Button, IconButton, LoadingSpinner, modalManager, toastManager } from '@immich/ui';
-  import { mdiArrowLeft, mdiClose, mdiShareVariantOutline, mdiTrayArrowUp } from '@mdi/js';
+  import { mdiArrowLeft, mdiClose, mdiDownloadOutline, mdiShareVariantOutline, mdiTrayArrowUp } from '@mdi/js';
   import ShareModal from '$lib/modals/ShareModal.svelte';
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
@@ -62,6 +64,10 @@
     await modalManager.show(ShareModal, { albumId, name: album.name }).catch(() => undefined);
   };
 
+  const handleDownloadAll = () => {
+    downloadUrl(buildMediaUrl(`/albums/${albumId}/download-zip`), `${album?.name ?? 'album'}.zip`);
+  };
+
   const handleRemove = async (event: Event, file: FileRecord) => {
     event.stopPropagation();
     try {
@@ -94,6 +100,16 @@
         {/if}
       </div>
       <div class="flex items-center gap-2">
+        {#if files && files.length > 0}
+          <IconButton
+            shape="round"
+            color="secondary"
+            variant="ghost"
+            icon={mdiDownloadOutline}
+            aria-label={$t('download_all')}
+            onclick={handleDownloadAll}
+          />
+        {/if}
         <IconButton
           shape="round"
           color="secondary"

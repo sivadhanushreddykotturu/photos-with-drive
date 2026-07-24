@@ -2341,5 +2341,6 @@
   "share_invalid": "This share link is invalid or has been removed",
   "shared_album": "Shared album",
   "download_all": "Download all",
-  "add_to_favorites": "Add to favorites"
+  "add_to_favorites": "Add to favorites",
+  "download_zip_limit": "ZIP downloads are limited to {count} files — the first {count} were included."
 }

@@ -72,6 +72,11 @@ export function getFileMediaUrl(id: string): string {
   return buildMediaUrl(`/files/${id}/download`, { disposition: 'inline' });
 }
 
+/** Small Drive-generated thumbnail URL — use for covers/tiles, not full originals. */
+export function getFileThumbnailUrl(id: string): string {
+  return buildMediaUrl(`/files/${id}/thumbnail`);
+}
+
 /** Attachment URL for the browser download flow. */
 export function getFileDownloadUrl(id: string): string {
   return buildMediaUrl(`/files/${id}/download`, { disposition: 'attachment' });
