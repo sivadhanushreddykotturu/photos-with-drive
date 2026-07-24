@@ -1,7 +1,8 @@
-import { Readable } from 'node:stream'
+import busboy from 'busboy'
 import type { NextFunction, Response } from 'express'
 import mongoose from 'mongoose'
 import { z } from 'zod'
+import { env } from '../config/env.js'
 import { Album } from '../models/Album.js'
 import { ConnectedAccount } from '../models/ConnectedAccount.js'
 import { FileRecord, type FileRecordDocument } from '../models/FileRecord.js'
@@ -78,54 +79,103 @@ async function findOwnedAccount(userId: string, accountId: mongoose.Types.Object
 }
 
 // POST /files/upload (multipart, field "file", optional "folderId")
-export async function uploadFile(req: AuthRequest, res: Response, next: NextFunction) {
-  try {
-    if (!req.file) throw ApiError.badRequest('FILE_REQUIRED', 'No file uploaded. Send multipart field "file".')
-    const folderId = parseFolderId(req.body?.folderId)
-    await assertFolderOwnership(req.user!.id, folderId)
-
-    const accounts = await ConnectedAccount.find({ userId: req.user!.id }).select('+accessToken +refreshToken')
-    if (accounts.length === 0) throw ApiError.badRequest('NO_CONNECTED_ACCOUNT', 'Connect a Google Drive account first.')
-
-    const account = pickUploadAccount(accounts, req.file.size)
-    if (!account) throw new ApiError(413, 'INSUFFICIENT_STORAGE', 'No connected account has enough free space.')
-
-    // Multer decodes multipart filenames as latin1; recover UTF-8 names.
-    const fileName = Buffer.from(req.file.originalname, 'latin1').toString('utf8')
-
-    const auth = await getAuthedGoogleClient(account)
-    const appFolderId = await ensureAppFolder(auth)
-    const driveFile = await uploadFileToDrive(auth, appFolderId, {
-      name: fileName,
-      mimeType: req.file.mimetype,
-      body: Readable.from(req.file.buffer),
-    })
-
-    const record = await FileRecord.create({
-      userId: req.user!.id,
-      connectedAccountId: account._id,
-      driveFileId: driveFile.id,
-      name: driveFile.name ?? fileName,
-      mimeType: driveFile.mimeType ?? req.file.mimetype,
-      size: driveFile.size ? Number(driveFile.size) : req.file.size,
-      thumbnailLink: driveFile.thumbnailLink ?? undefined,
-      imageMediaMetadata: driveFile.imageMediaMetadata
-        ? { width: driveFile.imageMediaMetadata.width ?? undefined, height: driveFile.imageMediaMetadata.height ?? undefined }
-        : undefined,
-      videoMediaMetadata: driveFile.videoMediaMetadata?.durationMillis
-        ? { duration: Number(driveFile.videoMediaMetadata.durationMillis) }
-        : undefined,
-      createdTime: driveFile.createdTime ? new Date(driveFile.createdTime) : new Date(),
-      folderId,
-    })
-
-    account.storageQuota.used += record.size
-    await account.save()
-
-    return res.status(201).json({ file: serializeFile(record) })
-  } catch (error) {
-    return next(error)
+// Streams the request body straight into Drive (busboy) — the file is never
+// buffered in server memory, so large uploads can't OOM the instance.
+export function uploadFile(req: AuthRequest, res: Response, next: NextFunction) {
+  const contentLength = Number(req.headers['content-length'] ?? 0)
+  if (!contentLength) {
+    return next(ApiError.badRequest('FILE_REQUIRED', 'No file uploaded. Send multipart field "file".'))
   }
+
+  let folderIdRaw: string | undefined
+  let responded = false
+  const fail = (error: unknown) => {
+    if (!responded) {
+      responded = true
+      req.unpipe(bb)
+      next(error)
+    }
+  }
+
+  const bb = busboy({ headers: req.headers, limits: { fileSize: env.MAX_UPLOAD_BYTES, files: 1 } })
+
+  bb.on('field', (name, value) => {
+    if (name === 'folderId') folderIdRaw = value
+  })
+
+  bb.on('file', (fieldName, stream, info) => {
+    if (fieldName !== 'file') {
+      stream.resume()
+      return
+    }
+
+    stream.on('limit', () => {
+      stream.resume()
+      fail(new ApiError(413, 'UPLOAD_TOO_LARGE', 'Uploaded file exceeds the size limit.'))
+    })
+
+    void (async () => {
+      try {
+        // content-length includes multipart overhead; close enough for account picking.
+        const approxSize = contentLength
+        const folderId = parseFolderId(folderIdRaw)
+        await assertFolderOwnership(req.user!.id, folderId)
+
+        const accounts = await ConnectedAccount.find({ userId: req.user!.id }).select('+accessToken +refreshToken')
+        if (accounts.length === 0) throw ApiError.badRequest('NO_CONNECTED_ACCOUNT', 'Connect a Google Drive account first.')
+
+        const account = pickUploadAccount(accounts, approxSize)
+        if (!account) throw new ApiError(413, 'INSUFFICIENT_STORAGE', 'No connected account has enough free space.')
+
+        // busboy decodes filenames as latin1; recover UTF-8 names.
+        const fileName = Buffer.from(info.filename, 'latin1').toString('utf8')
+
+        const auth = await getAuthedGoogleClient(account)
+        const appFolderId = await ensureAppFolder(auth)
+
+        const driveFile = await uploadFileToDrive(auth, appFolderId, {
+          name: fileName,
+          mimeType: info.mimeType || 'application/octet-stream',
+          body: stream,
+        })
+
+        const record = await FileRecord.create({
+          userId: req.user!.id,
+          connectedAccountId: account._id,
+          driveFileId: driveFile.id,
+          name: driveFile.name ?? fileName,
+          mimeType: driveFile.mimeType ?? info.mimeType,
+          size: driveFile.size ? Number(driveFile.size) : approxSize,
+          thumbnailLink: driveFile.thumbnailLink ?? undefined,
+          imageMediaMetadata: driveFile.imageMediaMetadata
+            ? { width: driveFile.imageMediaMetadata.width ?? undefined, height: driveFile.imageMediaMetadata.height ?? undefined }
+            : undefined,
+          videoMediaMetadata: driveFile.videoMediaMetadata?.durationMillis
+            ? { duration: Number(driveFile.videoMediaMetadata.durationMillis) }
+            : undefined,
+          createdTime: driveFile.createdTime ? new Date(driveFile.createdTime) : new Date(),
+          folderId,
+        })
+
+        account.storageQuota.used += record.size
+        await account.save()
+
+        if (!responded) {
+          responded = true
+          res.status(201).json({ file: serializeFile(record) })
+        }
+      } catch (error) {
+        stream.resume() // drain so the connection can settle
+        fail(error)
+      }
+    })()
+  })
+
+  bb.on('filesLimit', () => fail(ApiError.badRequest('TOO_MANY_FILES', 'Upload one file per request.')))
+  bb.on('error', (error) => fail(error))
+  req.on('error', (error) => fail(error))
+
+  req.pipe(bb)
 }
 
 // GET /files?folderId=&type=media|all&groupBy=date

@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "busboy": "^1.6.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
@@ -24,16 +25,15 @@
     "googleapis": "^173.0.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.2.0",
-    "multer": "^2.2.0",
     "nodemailer": "^8.0.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/busboy": "^1.5.4",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
-    "@types/multer": "^2.2.0",
     "@types/node": "^25.9.1",
     "@types/nodemailer": "^7.0.4",
     "tsx": "^4.22.4",

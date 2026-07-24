@@ -1,6 +1,5 @@
 import type { NextFunction, Request, Response } from 'express'
 import mongoose from 'mongoose'
-import multer from 'multer'
 import { ZodError } from 'zod'
 import { ApiError } from '../utils/api-error.js'
 
@@ -19,13 +18,6 @@ export function errorMiddleware(error: unknown, _req: Request, res: Response, _n
       message: 'Invalid request data.',
       details: error.issues.map((issue) => ({ path: issue.path.join('.'), message: issue.message })),
     })
-  }
-
-  if (error instanceof multer.MulterError) {
-    if (error.code === 'LIMIT_FILE_SIZE') {
-      return res.status(413).json({ code: 'UPLOAD_TOO_LARGE', message: 'Uploaded file exceeds the size limit.' })
-    }
-    return res.status(400).json({ code: 'UPLOAD_ERROR', message: error.message })
   }
 
   if (error instanceof mongoose.Error.CastError) {
