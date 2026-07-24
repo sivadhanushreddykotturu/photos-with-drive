@@ -266,20 +266,23 @@ export async function getFile(req: AuthRequest, res: Response, next: NextFunctio
     const missingImageSize = !isVideo && !file.imageMediaMetadata?.width
 
     if (missingVideoDuration || missingImageSize) {
-      const account = await findOwnedAccount(req.user!.id, file.connectedAccountId)
-      const auth = await getAuthedGoogleClient(account)
-      const metadata = await getDriveMediaMetadata(auth, file.driveFileId).catch(() => null)
-      if (metadata) {
-        if (metadata.imageMediaMetadata && (metadata.imageMediaMetadata.width || metadata.imageMediaMetadata.height)) {
+      // Backfill is best-effort: a Drive hiccup must never fail the file fetch itself.
+      try {
+        const account = await findOwnedAccount(req.user!.id, file.connectedAccountId)
+        const auth = await getAuthedGoogleClient(account)
+        const metadata = await getDriveMediaMetadata(auth, file.driveFileId)
+        if (metadata?.imageMediaMetadata && (metadata.imageMediaMetadata.width || metadata.imageMediaMetadata.height)) {
           file.imageMediaMetadata = {
             width: metadata.imageMediaMetadata.width ?? undefined,
             height: metadata.imageMediaMetadata.height ?? undefined,
           }
         }
-        if (metadata.videoMediaMetadata?.durationMillis) {
+        if (metadata?.videoMediaMetadata?.durationMillis) {
           file.videoMediaMetadata = { duration: Number(metadata.videoMediaMetadata.durationMillis) }
         }
         await file.save()
+      } catch (error) {
+        console.error(`Metadata backfill failed for ${file._id.toString()}:`, error)
       }
     }
 
