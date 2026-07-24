@@ -42,6 +42,8 @@ export type FileRecord = {
   createdTime: string;
   folderId: string | null;
   isDeleted: boolean;
+  deletedAt: string | null;
+  isFavorite: boolean;
 };
 
 export type FileGroup = {

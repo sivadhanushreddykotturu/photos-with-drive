@@ -10,8 +10,9 @@
   import { Route } from '$lib/route';
   import { openFileUploadDialog } from '$lib/utils/file-uploader';
   import { handleError } from '$lib/utils/handle-error';
-  import { Button, IconButton, LoadingSpinner, toastManager } from '@immich/ui';
-  import { mdiArrowLeft, mdiClose, mdiTrayArrowUp } from '@mdi/js';
+  import { Button, IconButton, LoadingSpinner, modalManager, toastManager } from '@immich/ui';
+  import { mdiArrowLeft, mdiClose, mdiShareVariantOutline, mdiTrayArrowUp } from '@mdi/js';
+  import ShareModal from '$lib/modals/ShareModal.svelte';
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
 
@@ -54,6 +55,13 @@
     }
   };
 
+  const handleShare = async () => {
+    if (!album) {
+      return;
+    }
+    await modalManager.show(ShareModal, { albumId, name: album.name }).catch(() => undefined);
+  };
+
   const handleRemove = async (event: Event, file: FileRecord) => {
     event.stopPropagation();
     try {
@@ -85,17 +93,27 @@
           </div>
         {/if}
       </div>
-      <Button
-        shape="round"
-        size="small"
-        variant="ghost"
-        color="secondary"
-        leadingIcon={mdiTrayArrowUp}
-        loading={uploading}
-        onclick={handleUpload}
-      >
-        {$t('add_photos')}
-      </Button>
+      <div class="flex items-center gap-2">
+        <IconButton
+          shape="round"
+          color="secondary"
+          variant="ghost"
+          icon={mdiShareVariantOutline}
+          aria-label={$t('share_link')}
+          onclick={handleShare}
+        />
+        <Button
+          shape="round"
+          size="small"
+          variant="ghost"
+          color="secondary"
+          leadingIcon={mdiTrayArrowUp}
+          loading={uploading}
+          onclick={handleUpload}
+        >
+          {$t('add_photos')}
+        </Button>
+      </div>
     </div>
 
     {#if files === undefined}

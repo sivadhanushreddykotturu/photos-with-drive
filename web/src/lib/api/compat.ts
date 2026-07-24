@@ -376,7 +376,7 @@ export const fileRecordToAssetDto = (file: FileRecord): AssetResponseDto => {
     duration: file.videoMediaMetadata?.duration ?? null, // milliseconds
     width: file.imageMediaMetadata?.width,
     height: file.imageMediaMetadata?.height,
-    isFavorite: false,
+    isFavorite: file.isFavorite ?? false,
     isTrashed: false,
     visibility: AssetVisibility.Timeline,
     ownerId: '',

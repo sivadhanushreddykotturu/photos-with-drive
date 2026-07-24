@@ -29,15 +29,17 @@ const listQuerySchema = z.object({
   folderId: z.string().optional(),
   type: z.enum(['media', 'all']).default('all'),
   groupBy: z.enum(['date']).optional(),
+  favorite: z.coerce.boolean().optional(),
 })
 
 const patchFileSchema = z
   .object({
     name: z.string().trim().min(1).optional(),
     folderId: z.string().nullable().optional(),
+    isFavorite: z.boolean().optional(),
   })
-  .refine((data) => data.name !== undefined || data.folderId !== undefined, {
-    message: 'At least one of name or folderId is required.',
+  .refine((data) => data.name !== undefined || data.folderId !== undefined || data.isFavorite !== undefined, {
+    message: 'At least one of name, folderId or isFavorite is required.',
   })
 
 function serializeFile(file: FileRecordDocument) {
@@ -54,6 +56,8 @@ function serializeFile(file: FileRecordDocument) {
     createdTime: file.createdTime,
     folderId: file.folderId?.toString() ?? null,
     isDeleted: file.isDeleted,
+    deletedAt: file.deletedAt ?? null,
+    isFavorite: file.isFavorite,
   }
 }
 
@@ -190,10 +194,12 @@ export async function listFiles(req: AuthRequest, res: Response, next: NextFunct
       isDeleted: boolean
       folderId?: mongoose.Types.ObjectId | null
       mimeType?: RegExp
+      isFavorite?: boolean
     } = { userId: req.user!.id, isDeleted: false }
 
     if (query.folderId !== undefined) filter.folderId = parseFolderId(query.folderId)
     if (query.type === 'media') filter.mimeType = /^(image|video)\//
+    if (query.favorite === true) filter.isFavorite = true
 
     const files = await FileRecord.find(filter).sort({ createdTime: -1 })
 
@@ -345,6 +351,10 @@ export async function patchFile(req: AuthRequest, res: Response, next: NextFunct
       file.folderId = folderId
     }
 
+    if (body.isFavorite !== undefined) {
+      file.isFavorite = body.isFavorite
+    }
+
     await file.save()
     return res.json({ file: serializeFile(file) })
   } catch (error) {
@@ -352,10 +362,50 @@ export async function patchFile(req: AuthRequest, res: Response, next: NextFunct
   }
 }
 
-// DELETE /files/:id
+// DELETE /files/:id — TRASH only: marks the record deleted but keeps the Drive
+// file, so it can be restored. Permanent removal happens via DELETE /files/:id/permanent.
 export async function deleteFile(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const file = await findOwnedFile(req)
+    file.isDeleted = true
+    file.deletedAt = new Date()
+    await file.save()
+    return res.json({ status: 'ok' })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+// GET /files/trash
+export async function listTrashedFiles(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const files = await FileRecord.find({ userId: req.user!.id, isDeleted: true }).sort({ deletedAt: -1 })
+    return res.json({ files: files.map(serializeFile) })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+// POST /files/:id/restore
+export async function restoreFile(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const file = await FileRecord.findOne({ _id: req.params.id, userId: req.user!.id, isDeleted: true })
+    if (!file) throw ApiError.notFound('FILE_NOT_FOUND', 'File not found in trash.')
+    file.isDeleted = false
+    file.deletedAt = undefined
+    await file.save()
+    return res.json({ file: serializeFile(file) })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+// DELETE /files/:id/permanent — delete from Drive + remove the record for good.
+export async function permanentlyDeleteFile(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const file = await FileRecord.findOne({ _id: req.params.id, userId: req.user!.id })
+    if (!file) throw ApiError.notFound('FILE_NOT_FOUND', 'File not found.')
+
     const account = await ConnectedAccount.findOne({ _id: file.connectedAccountId, userId: req.user!.id }).select(
       '+accessToken +refreshToken',
     )
@@ -367,11 +417,44 @@ export async function deleteFile(req: AuthRequest, res: Response, next: NextFunc
       account.storageQuota.used = Math.max(0, account.storageQuota.used - file.size)
       await account.save()
     }
-    file.isDeleted = true
-    await file.save()
-    // Remove the deleted file from every album it belonged to.
+
+    await file.deleteOne()
     await Album.updateMany({ userId: req.user!.id, assetIds: file._id }, { $pull: { assetIds: file._id } })
     return res.json({ status: 'ok' })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+// POST /files/trash/empty — permanently delete everything in trash.
+export async function emptyTrash(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const trashed = await FileRecord.find({ userId: req.user!.id, isDeleted: true })
+    let deleted = 0
+    const failed: string[] = []
+
+    for (const file of trashed) {
+      try {
+        const account = await ConnectedAccount.findOne({ _id: file.connectedAccountId, userId: req.user!.id }).select(
+          '+accessToken +refreshToken',
+        )
+        if (account) {
+          const auth = await getAuthedGoogleClient(account)
+          await deleteDriveFile(auth, file.driveFileId).catch(() => undefined)
+          account.storageQuota.used = Math.max(0, account.storageQuota.used - file.size)
+          await account.save()
+        }
+        await file.deleteOne()
+        deleted += 1
+      } catch (error) {
+        console.error(`Failed to permanently delete ${file._id.toString()}:`, error)
+        failed.push(file._id.toString())
+      }
+    }
+
+    const removedIds = trashed.map((file) => file._id)
+    await Album.updateMany({ userId: req.user!.id, assetIds: { $in: removedIds } }, { $pull: { assetIds: { $in: removedIds } } })
+    return res.json({ deleted, failed: failed.length })
   } catch (error) {
     return next(error)
   }

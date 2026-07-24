@@ -3,14 +3,16 @@
   import DeleteAction from '$lib/components/asset-viewer/actions/DeleteAction.svelte';
   import LoadingDots from '$lib/components/LoadingDots.svelte';
   import RenameAssetModal from '$lib/modals/RenameAssetModal.svelte';
+  import ShareModal from '$lib/modals/ShareModal.svelte';
   import { assetViewerManager } from '$lib/managers/asset-viewer-manager.svelte';
   import { languageManager } from '$lib/managers/language-manager.svelte';
-  import { getFileDownloadUrl } from '$lib/api/files';
-  import type { AssetResponseDto } from '$lib/api/compat';
+  import { eventManager } from '$lib/managers/event-manager.svelte';
+  import { getFileDownloadUrl, patchFile } from '$lib/api/files';
+  import { fileRecordToAssetDto, type AssetResponseDto } from '$lib/api/compat';
   import { downloadUrl } from '$lib/utils';
   import { handleError } from '$lib/utils/handle-error';
-  import { ActionButton, CommandPaletteDefaultProvider, IconButton, modalManager, Tooltip, type ActionItem } from '@immich/ui';
-  import { mdiArrowLeft, mdiArrowRight, mdiDownloadOutline, mdiPencilOutline } from '@mdi/js';
+  import { ActionButton, CommandPaletteDefaultProvider, IconButton, modalManager, toastManager, Tooltip, type ActionItem } from '@immich/ui';
+  import { mdiArrowLeft, mdiArrowRight, mdiDownloadOutline, mdiHeart, mdiHeartOutline, mdiPencilOutline, mdiShareVariantOutline } from '@mdi/js';
   import { t } from 'svelte-i18n';
 
   interface Props {
@@ -40,6 +42,23 @@
       onAssetChange?.(renamed as AssetResponseDto);
     }
   };
+
+  const handleFavorite = async () => {
+    const next = !asset.isFavorite;
+    try {
+      const updated = await patchFile(asset.id, { isFavorite: next });
+      const dto = fileRecordToAssetDto(updated);
+      onAssetChange?.(dto);
+      eventManager.emit('AssetUpdate', dto);
+      toastManager.primary(next ? $t('added_to_favorites') : $t('removed_from_favorites'));
+    } catch (error) {
+      handleError(error, $t('errors.unable_to_save_changes'));
+    }
+  };
+
+  const handleShare = async () => {
+    await modalManager.show(ShareModal, { fileId: asset.id, name: asset.originalFileName }).catch(() => undefined);
+  };
 </script>
 
 <CommandPaletteDefaultProvider name={$t('assets')} actions={[Close]} />
@@ -64,6 +83,24 @@
         {/snippet}
       </Tooltip>
     {/if}
+
+    <IconButton
+      color="secondary"
+      shape="round"
+      variant="ghost"
+      icon={asset.isFavorite ? mdiHeart : mdiHeartOutline}
+      aria-label={asset.isFavorite ? $t('remove_from_favorites') : $t('add_to_favorites')}
+      onclick={handleFavorite}
+    />
+
+    <IconButton
+      color="secondary"
+      shape="round"
+      variant="ghost"
+      icon={mdiShareVariantOutline}
+      aria-label={$t('share_link')}
+      onclick={handleShare}
+    />
 
     <IconButton
       color="secondary"

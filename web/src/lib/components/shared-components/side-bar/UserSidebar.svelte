@@ -3,14 +3,28 @@
   import Sidebar from '$lib/components/sidebar/Sidebar.svelte';
   import { Route } from '$lib/route';
   import { NavbarItem } from '@immich/ui';
-  import { mdiCog, mdiCogOutline, mdiImageAlbum, mdiImageMultiple, mdiImageMultipleOutline } from '@mdi/js';
+  import {
+    mdiCog,
+    mdiCogOutline,
+    mdiHeart,
+    mdiHeartOutline,
+    mdiImageAlbum,
+    mdiImageMultiple,
+    mdiImageMultipleOutline,
+    mdiTrashCan,
+    mdiTrashCanOutline,
+  } from '@mdi/js';
   import { t } from 'svelte-i18n';
 </script>
 
 <Sidebar ariaLabel={$t('primary')}>
   <NavbarItem title={$t('photos')} href={Route.photos()} icon={mdiImageMultipleOutline} activeIcon={mdiImageMultiple} />
 
+  <NavbarItem title={$t('favorites')} href={Route.favorites()} icon={mdiHeartOutline} activeIcon={mdiHeart} />
+
   <NavbarItem title={$t('albums')} href={Route.albums()} icon={{ icon: mdiImageAlbum, flipped: true }} />
+
+  <NavbarItem title={$t('trash')} href={Route.trash()} icon={mdiTrashCanOutline} activeIcon={mdiTrashCan} />
 
   <NavbarItem
     title={$t('connected_accounts')}

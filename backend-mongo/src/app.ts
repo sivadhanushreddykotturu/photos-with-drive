@@ -7,6 +7,8 @@ import { authRouter } from './routes/auth.routes.js'
 import { connectedAccountRouter } from './routes/connected-account.routes.js'
 import { fileRouter } from './routes/file.routes.js'
 import { albumRouter } from './routes/album.routes.js'
+import { shareRouter } from './routes/share.routes.js'
+import { publicRouter } from './routes/public.routes.js'
 
 export const app = express()
 app.set('trust proxy', true)
@@ -29,6 +31,8 @@ app.use('/auth', authRouter)
 app.use('/connected-accounts', connectedAccountRouter)
 app.use('/files', fileRouter)
 app.use('/albums', albumRouter)
+app.use('/share', shareRouter)
+app.use('/public', publicRouter)
 
 app.use(notFoundMiddleware)
 app.use(errorMiddleware)

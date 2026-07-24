@@ -17,7 +17,7 @@ export async function getFile(id: string): Promise<FileRecord> {
   return data.file;
 }
 
-export async function patchFile(id: string, update: { name?: string; folderId?: string | null }): Promise<FileRecord> {
+export async function patchFile(id: string, update: { name?: string; folderId?: string | null; isFavorite?: boolean }): Promise<FileRecord> {
   const data = await apiFetch<{ file: FileRecord }>(`/files/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(update),
@@ -25,8 +25,32 @@ export async function patchFile(id: string, update: { name?: string; folderId?: 
   return data.file;
 }
 
+/** Trash-only: the Drive file is kept, record is hidden until restore/permanent delete. */
 export async function deleteFile(id: string): Promise<void> {
   await apiFetch<{ status: string }>(`/files/${id}`, { method: 'DELETE' });
+}
+
+export async function listTrashedFiles(): Promise<FileRecord[]> {
+  const data = await apiFetch<{ files: FileRecord[] }>('/files/trash');
+  return data.files;
+}
+
+export async function restoreFile(id: string): Promise<FileRecord> {
+  const data = await apiFetch<{ file: FileRecord }>(`/files/${id}/restore`, { method: 'POST' });
+  return data.file;
+}
+
+export async function permanentlyDeleteFile(id: string): Promise<void> {
+  await apiFetch<{ status: string }>(`/files/${id}/permanent`, { method: 'DELETE' });
+}
+
+export async function emptyTrash(): Promise<{ deleted: number; failed: number }> {
+  return apiFetch<{ deleted: number; failed: number }>('/files/trash/empty', { method: 'POST' });
+}
+
+export async function listFavorites(): Promise<FileRecord[]> {
+  const data = await apiFetch<{ files: FileRecord[] }>('/files?favorite=true');
+  return data.files;
 }
 
 export type SyncResult = {

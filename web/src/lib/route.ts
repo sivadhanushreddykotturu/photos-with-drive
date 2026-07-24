@@ -41,6 +41,13 @@ export const Route = {
   albums: () => '/albums',
   viewAlbum: ({ id }: { id: string }) => `/albums/${id}`,
 
+  // library
+  favorites: () => '/favorites',
+  trash: () => '/trash',
+
+  // public share (unauthenticated)
+  viewSharedLink: ({ token }: { token: string }) => `/share/${token}`,
+
   // settings
   userSettings: (params?: { isOpen?: OpenQueryParam }) => '/user-settings' + asQueryString(params),
 

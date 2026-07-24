@@ -133,7 +133,7 @@ class MediaStore {
       bucket.localOffsetHours.push(0);
       bucket.createdAt.push(file.createdTime);
       bucket.visibility.push(AssetVisibility.Timeline);
-      bucket.isFavorite.push(false);
+      bucket.isFavorite.push(file.isFavorite ?? false);
       bucket.isTrashed.push(false);
       bucket.ownerId.push(ownerId);
       bucket.projectionType.push(null);
@@ -172,7 +172,7 @@ class MediaStore {
       createdAt: plain,
       fileCreatedAt: plain,
       visibility: AssetVisibility.Timeline,
-      isFavorite: false,
+      isFavorite: file.isFavorite ?? false,
       isTrashed: false,
       isVideo,
       isImage: !isVideo,

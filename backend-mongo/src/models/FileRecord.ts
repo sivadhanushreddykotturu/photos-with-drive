@@ -22,6 +22,8 @@ export interface IFileRecord {
   createdTime: Date
   folderId: Types.ObjectId | null
   isDeleted: boolean
+  deletedAt?: Date
+  isFavorite: boolean
   createdAt: Date
   updatedAt: Date
 }
@@ -57,6 +59,8 @@ const fileRecordSchema = new Schema<IFileRecord>(
     createdTime: { type: Date, required: true },
     folderId: { type: Schema.Types.ObjectId, ref: 'VirtualFolder', default: null },
     isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date },
+    isFavorite: { type: Boolean, default: false },
   },
   { timestamps: true },
 )
@@ -64,5 +68,6 @@ const fileRecordSchema = new Schema<IFileRecord>(
 fileRecordSchema.index({ connectedAccountId: 1, driveFileId: 1 }, { unique: true })
 fileRecordSchema.index({ userId: 1, folderId: 1, isDeleted: 1 })
 fileRecordSchema.index({ userId: 1, createdTime: -1 })
+fileRecordSchema.index({ userId: 1, isFavorite: 1, isDeleted: 1 })
 
 export const FileRecord: Model<IFileRecord> = mongoose.model<IFileRecord>('FileRecord', fileRecordSchema)
