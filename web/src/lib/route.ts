@@ -31,7 +31,6 @@ export const Route = {
   logout: (params?: { continue?: string }) => '/auth/logout' + asQueryString(params),
   register: () => '/auth/register',
   forgotPassword: () => '/auth/forgot-password',
-  resetPassword: (params?: { token?: string }) => '/auth/reset-password' + asQueryString(params),
 
   // photos
   photos: (params?: { at?: string }) => '/photos' + asQueryString(params),

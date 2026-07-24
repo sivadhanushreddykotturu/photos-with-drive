@@ -12,6 +12,7 @@ export interface IUser {
   email: string
   name: string
   hashedPassword: string
+  emailVerified: boolean
   refreshTokens: IRefreshToken[]
   passwordResetToken?: string
   passwordResetExpires?: Date
@@ -37,6 +38,7 @@ const userSchema = new Schema<IUser>(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
     name: { type: String, required: true, trim: true },
     hashedPassword: { type: String, required: true, select: false },
+    emailVerified: { type: Boolean, default: false },
     refreshTokens: { type: [refreshTokenSchema], default: [], select: false },
     passwordResetToken: { type: String, select: false },
     passwordResetExpires: { type: Date, select: false },

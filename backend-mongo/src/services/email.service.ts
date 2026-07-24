@@ -54,20 +54,71 @@ export async function sendEmail(to: string, subject: string, html: string) {
   console.log(`[email:dev] To: ${to} | Subject: ${subject}\n${html}`)
 }
 
-export async function sendPasswordResetEmail(to: string, resetUrl: string) {
-  const html = `
-    <p>You requested a password reset.</p>
-    <p><a href="${resetUrl}">Click here to reset your password</a></p>
-    <p>This link expires in 1 hour. If you did not request this, you can ignore this email.</p>
-  `
-  await sendEmail(to, 'Reset your password', html)
+// ---------------------------------------------------------------------------
+// Branded template shared by all transactional mail
+// ---------------------------------------------------------------------------
+
+type EmailTemplateOptions = {
+  heading: string
+  body: string
+  code?: string
+  footerNote?: string
+}
+
+function renderEmailTemplate({ heading, body, code, footerNote }: EmailTemplateOptions) {
+  const codeBlock = code
+    ? `<div style="margin:28px 0;padding:18px 24px;text-align:center;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:14px;">
+        <span style="font-family:'Courier New',monospace;font-size:34px;font-weight:700;letter-spacing:10px;color:#67e8f9;">${code}</span>
+      </div>`
+    : ''
+
+  return `<!doctype html>
+<html>
+  <body style="margin:0;padding:24px;background:#0B1026;font-family:Arial,Helvetica,sans-serif;">
+    <div style="max-width:480px;margin:0 auto;background:#131a3a;border:1px solid rgba(255,255,255,0.08);border-radius:20px;padding:36px 32px;">
+      <p style="margin:0 0 4px;font-family:'Courier New',monospace;font-size:11px;letter-spacing:4px;text-transform:uppercase;color:#67e8f9;">PHOTODRIVE</p>
+      <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;color:#ffffff;">${heading}</h1>
+      <p style="margin:0;font-size:14px;line-height:1.7;color:#aab3d0;">${body}</p>
+      ${codeBlock}
+      <p style="margin:24px 0 0;font-size:12px;line-height:1.6;color:#5f6b94;">${footerNote ?? 'If you did not request this, you can safely ignore this email.'}</p>
+    </div>
+    <p style="max-width:480px;margin:14px auto 0;text-align:center;font-size:11px;color:#465180;">Your photos stay in your drives — PhotoDrive is just the window.</p>
+  </body>
+</html>`
 }
 
 export async function sendLoginOtpEmail(to: string, code: string) {
-  const html = `
-    <p>Your PhotoDrive sign-in code:</p>
-    <p style="font-size:32px;font-weight:700;letter-spacing:8px;font-family:monospace">${code}</p>
-    <p>It expires in 10 minutes. If you didn't try to sign in, you can ignore this email.</p>
-  `
-  await sendEmail(to, `${code} is your PhotoDrive sign-in code`, html)
+  await sendEmail(
+    to,
+    `${code} is your PhotoDrive sign-in code`,
+    renderEmailTemplate({
+      heading: 'Your sign-in code',
+      body: 'Enter this 6-digit code to sign in. It expires in <b>10 minutes</b>.',
+      code,
+    }),
+  )
+}
+
+export async function sendVerificationEmail(to: string, code: string) {
+  await sendEmail(
+    to,
+    `${code} — confirm your PhotoDrive account`,
+    renderEmailTemplate({
+      heading: 'Confirm your email',
+      body: 'Welcome! Enter this 6-digit code to confirm your email and activate your account. It expires in <b>10 minutes</b>.',
+      code,
+    }),
+  )
+}
+
+export async function sendPasswordResetEmail(to: string, code: string) {
+  await sendEmail(
+    to,
+    `${code} — reset your PhotoDrive password`,
+    renderEmailTemplate({
+      heading: 'Reset your password',
+      body: 'Enter this 6-digit code along with your new password. It expires in <b>10 minutes</b>.',
+      code,
+    }),
+  )
 }

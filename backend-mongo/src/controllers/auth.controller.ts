@@ -1,13 +1,13 @@
 import crypto from 'node:crypto'
 import type { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
-import { LoginOtp } from '../models/LoginOtp.js'
+import { LoginOtp, type OtpPurpose } from '../models/LoginOtp.js'
 import { User, type UserDocument } from '../models/User.js'
 import { env } from '../config/env.js'
 import { hashPassword, verifyPassword } from '../utils/password.js'
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../utils/jwt.js'
 import { hashToken, randomToken } from '../services/encryption.service.js'
-import { sendLoginOtpEmail, sendPasswordResetEmail } from '../services/email.service.js'
+import { sendLoginOtpEmail, sendPasswordResetEmail, sendVerificationEmail } from '../services/email.service.js'
 import { ApiError } from '../utils/api-error.js'
 import type { AuthRequest } from '../middleware/auth.middleware.js'
 
@@ -39,6 +39,41 @@ export const otpVerifySchema = z.object({
   email: z.string().email(),
   code: z.string().regex(/^\d{6}$/, 'Code must be 6 digits'),
 })
+
+export const emailSchema = z.object({
+  email: z.string().email(),
+})
+
+export const resetPasswordWithCodeSchema = z.object({
+  email: z.string().email(),
+  code: z.string().regex(/^\d{6}$/, 'Code must be 6 digits'),
+  password: z.string().min(8),
+})
+
+const MAX_OTP_ATTEMPTS = 5
+
+async function issueOtp(email: string, purpose: OtpPurpose) {
+  const code = crypto.randomInt(100_000, 1_000_000).toString()
+  await LoginOtp.findOneAndUpdate(
+    { email, purpose },
+    { codeHash: hashToken(code), attempts: 0, createdAt: new Date() },
+    { upsert: true },
+  )
+  return code
+}
+
+async function verifyOtpCode(email: string, purpose: OtpPurpose, code: string) {
+  const otp = await LoginOtp.findOne({ email, purpose })
+  if (!otp || otp.attempts >= MAX_OTP_ATTEMPTS) {
+    throw ApiError.unauthorized('OTP_INVALID', 'Code is invalid or expired.')
+  }
+  if (otp.codeHash !== hashToken(code)) {
+    otp.attempts += 1
+    await otp.save()
+    throw ApiError.unauthorized('OTP_INVALID', 'Code is invalid or expired.')
+  }
+  await otp.deleteOne()
+}
 
 const REFRESH_COOKIE = 'refreshToken'
 const refreshTtlMs = () => env.REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000
@@ -82,15 +117,61 @@ export async function register(req: Request, res: Response, next: NextFunction) 
   try {
     const body = registerSchema.parse(req.body)
     const existing = await User.findOne({ email: body.email })
-    if (existing) throw ApiError.conflict('AUTH_EMAIL_TAKEN', 'Email already registered.')
+    if (existing?.emailVerified) throw ApiError.conflict('AUTH_EMAIL_TAKEN', 'Email already registered.')
 
-    const user = await User.create({
+    // Unverified re-registration: replace the pending account and resend the code.
+    if (existing) await existing.deleteOne()
+
+    await User.create({
       name: body.name,
       email: body.email,
       hashedPassword: await hashPassword(body.password),
+      emailVerified: false,
     })
+
+    const code = await issueOtp(body.email, 'register')
+    await sendVerificationEmail(body.email, code).catch((error) => {
+      console.error('Failed to send verification email:', error)
+    })
+
+    return res.status(201).json({ status: 'ok', requiresVerification: true })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+// POST /auth/verify-email — confirm the registration code, then start the session.
+export async function verifyEmail(req: Request, res: Response, next: NextFunction) {
+  try {
+    const body = otpVerifySchema.parse(req.body)
+    await verifyOtpCode(body.email, 'register', body.code)
+
+    const user = await User.findOneAndUpdate(
+      { email: body.email },
+      { emailVerified: true },
+      { new: true },
+    ).select('+refreshTokens')
+    if (!user) throw ApiError.notFound('USER_NOT_FOUND', 'Account not found.')
+
     const tokens = await createSession(user, req, res)
-    return res.status(201).json({ ...tokens, user: publicUser(user) })
+    return res.json({ ...tokens, user: publicUser(user) })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+// POST /auth/verify-email/resend
+export async function resendVerification(req: Request, res: Response, next: NextFunction) {
+  try {
+    const body = emailSchema.parse(req.body)
+    const user = await User.findOne({ email: body.email, emailVerified: false })
+    if (user) {
+      const code = await issueOtp(body.email, 'register')
+      await sendVerificationEmail(body.email, code).catch((error) => {
+        console.error('Failed to send verification email:', error)
+      })
+    }
+    return res.json({ status: 'ok' })
   } catch (error) {
     return next(error)
   }
@@ -102,6 +183,9 @@ export async function login(req: Request, res: Response, next: NextFunction) {
     const user = await User.findOne({ email: body.email }).select('+hashedPassword +refreshTokens')
     if (!user || !(await verifyPassword(user.hashedPassword, body.password))) {
       throw ApiError.unauthorized('AUTH_INVALID_CREDENTIALS', 'Invalid email or password.')
+    }
+    if (!user.emailVerified) {
+      throw ApiError.forbidden('EMAIL_NOT_VERIFIED', 'Confirm your email first — we sent you a code at registration.')
     }
     const tokens = await createSession(user, req, res)
     return res.json({ ...tokens, user: publicUser(user) })
@@ -156,14 +240,10 @@ export async function logout(req: Request, res: Response, next: NextFunction) {
 export async function forgotPassword(req: Request, res: Response, next: NextFunction) {
   try {
     const body = forgotPasswordSchema.parse(req.body)
-    const user = await User.findOne({ email: body.email }).select('+passwordResetToken +passwordResetExpires')
+    const user = await User.findOne({ email: body.email, emailVerified: true })
     if (user) {
-      const resetToken = randomToken()
-      user.passwordResetToken = hashToken(resetToken)
-      user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000) // 1 hour
-      await user.save()
-      const resetUrl = `${env.FRONTEND_URL}/reset-password?token=${resetToken}`
-      await sendPasswordResetEmail(user.email, resetUrl).catch((error) => {
+      const code = await issueOtp(body.email, 'reset')
+      await sendPasswordResetEmail(body.email, code).catch((error) => {
         console.error('Failed to send password reset email:', error)
       })
     }
@@ -176,16 +256,13 @@ export async function forgotPassword(req: Request, res: Response, next: NextFunc
 
 export async function resetPassword(req: Request, res: Response, next: NextFunction) {
   try {
-    const body = resetPasswordSchema.parse(req.body)
-    const user = await User.findOne({
-      passwordResetToken: hashToken(body.token),
-      passwordResetExpires: { $gt: new Date() },
-    }).select('+passwordResetToken +passwordResetExpires +refreshTokens')
-    if (!user) throw ApiError.badRequest('AUTH_RESET_TOKEN_INVALID', 'Reset token is invalid or expired.')
+    const body = resetPasswordWithCodeSchema.parse(req.body)
+    await verifyOtpCode(body.email, 'reset', body.code)
+
+    const user = await User.findOne({ email: body.email }).select('+refreshTokens')
+    if (!user) throw ApiError.notFound('USER_NOT_FOUND', 'Account not found.')
 
     user.hashedPassword = await hashPassword(body.password)
-    user.passwordResetToken = undefined
-    user.passwordResetExpires = undefined
     user.refreshTokens = [] // Invalidate all existing sessions.
     await user.save()
 
@@ -205,21 +282,14 @@ export async function me(req: AuthRequest, res: Response, next: NextFunction) {
   }
 }
 
-const MAX_OTP_ATTEMPTS = 5
-
 // POST /auth/otp/request — email a 6-digit sign-in code (never reveals if the email exists).
 export async function requestOtp(req: Request, res: Response, next: NextFunction) {
   try {
     const body = otpRequestSchema.parse(req.body)
-    const user = await User.findOne({ email: body.email }).select('+refreshTokens')
+    const user = await User.findOne({ email: body.email, emailVerified: true })
     if (user) {
-      const code = crypto.randomInt(100_000, 1_000_000).toString()
-      await LoginOtp.findOneAndUpdate(
-        { email: body.email },
-        { codeHash: hashToken(code), attempts: 0, createdAt: new Date() },
-        { upsert: true },
-      )
-      await sendLoginOtpEmail(user.email, code).catch((error) => {
+      const code = await issueOtp(body.email, 'login')
+      await sendLoginOtpEmail(body.email, code).catch((error) => {
         console.error('Failed to send login OTP email:', error)
       })
     }
@@ -233,18 +303,8 @@ export async function requestOtp(req: Request, res: Response, next: NextFunction
 export async function verifyOtp(req: Request, res: Response, next: NextFunction) {
   try {
     const body = otpVerifySchema.parse(req.body)
-    const otp = await LoginOtp.findOne({ email: body.email })
-    if (!otp || otp.attempts >= MAX_OTP_ATTEMPTS) {
-      throw ApiError.unauthorized('OTP_INVALID', 'Code is invalid or expired.')
-    }
+    await verifyOtpCode(body.email, 'login', body.code)
 
-    if (otp.codeHash !== hashToken(body.code)) {
-      otp.attempts += 1
-      await otp.save()
-      throw ApiError.unauthorized('OTP_INVALID', 'Code is invalid or expired.')
-    }
-
-    await otp.deleteOne()
     const user = await User.findOne({ email: body.email }).select('+refreshTokens').orFail()
     const tokens = await createSession(user, req, res)
     return res.json({ ...tokens, user: publicUser(user) })

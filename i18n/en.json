@@ -2349,5 +2349,6 @@
   "email_code_description": "Get a 6-digit sign-in code sent to your email — no password needed.",
   "send_code": "Email me a code",
   "code_sent_to": "If an account exists for {email}, a 6-digit code is on its way. It expires in 10 minutes.",
-  "use_a_different_email": "Use a different email"
+  "use_a_different_email": "Use a different email",
+  "resend_code": "Resend code"
 }

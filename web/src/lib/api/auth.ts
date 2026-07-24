@@ -12,15 +12,32 @@ export async function login(email: string, password: string): Promise<ApiUser> {
   return data.user;
 }
 
-export async function register(name: string, email: string, password: string): Promise<ApiUser> {
-  const data = await apiFetch<ApiLoginResponse>('/auth/register', {
+export async function register(name: string, email: string, password: string): Promise<void> {
+  // Account starts unverified; session begins after /auth/verify-email.
+  await apiFetch<{ status: string }>('/auth/register', {
     method: 'POST',
     body: JSON.stringify({ name, email, password }),
+    skipAuthRetry: true,
+  });
+}
+
+export async function verifyEmail(email: string, code: string): Promise<ApiUser> {
+  const data = await apiFetch<ApiLoginResponse>('/auth/verify-email', {
+    method: 'POST',
+    body: JSON.stringify({ email, code }),
     skipAuthRetry: true,
   });
   setAccessToken(data.accessToken);
   setRefreshToken(data.refreshToken);
   return data.user;
+}
+
+export async function resendVerification(email: string): Promise<void> {
+  await apiFetch<{ status: string }>('/auth/verify-email/resend', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+    skipAuthRetry: true,
+  });
 }
 
 export async function logout(): Promise<void> {
@@ -45,10 +62,10 @@ export async function forgotPassword(email: string): Promise<void> {
   });
 }
 
-export async function resetPassword(token: string, password: string): Promise<void> {
+export async function resetPassword(email: string, code: string, password: string): Promise<void> {
   await apiFetch<{ status: string }>('/auth/reset-password', {
     method: 'POST',
-    body: JSON.stringify({ token, password }),
+    body: JSON.stringify({ email, code, password }),
     skipAuthRetry: true,
   });
 }

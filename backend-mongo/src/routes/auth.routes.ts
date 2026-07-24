@@ -8,6 +8,8 @@ export const authRouter = Router()
 authRouter.use(authRateLimiter)
 
 authRouter.post('/register', authController.register)
+authRouter.post('/verify-email', authController.verifyEmail)
+authRouter.post('/verify-email/resend', emailRateLimiter, authController.resendVerification)
 authRouter.post('/login', authController.login)
 authRouter.post('/refresh', authController.refresh)
 authRouter.post('/logout', authController.logout)
