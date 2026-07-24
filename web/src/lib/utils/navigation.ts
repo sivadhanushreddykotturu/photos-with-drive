@@ -18,11 +18,15 @@ export const isAssetViewerRoute = (
 ) => !!(target?.route?.id?.endsWith('/[[assetId=id]]') && 'assetId' in (target?.params || {}));
 
 export function getAssetInfoFromParam({ assetId }: { assetId?: string }) {
-  // Degrade gracefully: a failed asset fetch must not 500 the whole photos page.
+  // Degrade gracefully: a failed asset fetch must not 500 the whole photos page,
+  // but it must not be silent either — log it so viewer failures are diagnosable.
   if (!assetId) {
     return undefined;
   }
-  return assetCacheManager.getAsset({ id: assetId }, false).catch(() => undefined);
+  return assetCacheManager.getAsset({ id: assetId }, false).catch((error: unknown) => {
+    console.error('[getAssetInfoFromParam] failed to load asset', assetId, error);
+    return undefined;
+  });
 }
 
 function currentUrlWithoutAsset() {
