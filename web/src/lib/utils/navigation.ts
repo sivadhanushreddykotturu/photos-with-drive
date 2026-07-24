@@ -18,7 +18,11 @@ export const isAssetViewerRoute = (
 ) => !!(target?.route?.id?.endsWith('/[[assetId=id]]') && 'assetId' in (target?.params || {}));
 
 export function getAssetInfoFromParam({ assetId }: { assetId?: string }) {
-  return assetId ? assetCacheManager.getAsset({ id: assetId }, false) : undefined;
+  // Degrade gracefully: a failed asset fetch must not 500 the whole photos page.
+  if (!assetId) {
+    return undefined;
+  }
+  return assetCacheManager.getAsset({ id: assetId }, false).catch(() => undefined);
 }
 
 function currentUrlWithoutAsset() {

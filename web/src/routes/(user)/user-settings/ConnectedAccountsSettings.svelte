@@ -1,17 +1,42 @@
 <script lang="ts">
   import * as accountsApi from '$lib/api/accounts';
+  import { syncGoogleFiles } from '$lib/api/files';
   import type { ConnectedAccount } from '$lib/api/types';
+  import { mediaStore } from '$lib/managers/timeline-manager/internal/media-store.svelte';
   import { connectedAccountsStore } from '$lib/stores/connected-accounts.svelte';
   import { handleError } from '$lib/utils/handle-error';
   import { getByteUnitString } from '$lib/utils/byte-units';
   import { locale } from '$lib/stores/preferences.store';
-  import { Button, Icon, IconButton, LoadingSpinner, modalManager } from '@immich/ui';
-  import { mdiDeleteOutline, mdiGoogleDrive, mdiRefresh } from '@mdi/js';
+  import { Button, Icon, IconButton, LoadingSpinner, modalManager, toastManager } from '@immich/ui';
+  import { mdiDeleteOutline, mdiGoogleDrive, mdiRefresh, mdiSync } from '@mdi/js';
   import { onMount } from 'svelte';
   import { t, date } from 'svelte-i18n';
 
   let accounts: ConnectedAccount[] | undefined = $state();
   let syncingId: string | null = $state(null);
+  let librarySyncing = $state(false);
+
+  const handleLibrarySync = async () => {
+    if (librarySyncing) {
+      return;
+    }
+    librarySyncing = true;
+    try {
+      const results = await syncGoogleFiles();
+      const totals = results.reduce(
+        (acc, r) => ({ created: acc.created + (r.created ?? 0), updated: acc.updated + (r.updated ?? 0), deleted: acc.deleted + (r.deleted ?? 0) }),
+        { created: 0, updated: 0, deleted: 0 },
+      );
+      await mediaStore.invalidate();
+      toastManager.primary(
+        `${$t('sync_completed')} — ${totals.created} new, ${totals.updated} updated, ${totals.deleted} removed`,
+      );
+    } catch (error) {
+      handleError(error, $t('errors.unable_to_save_changes'));
+    } finally {
+      librarySyncing = false;
+    }
+  };
 
   const loadAccounts = async () => {
     try {
@@ -125,9 +150,17 @@
     </ul>
   {/if}
 
-  <div>
+  <div class="flex items-center gap-2">
     <Button leadingIcon={mdiGoogleDrive} shape="round" size="small" onclick={handleConnect}>
       {$t('connect_google_drive')}
     </Button>
+    {#if accounts && accounts.length > 0}
+      <Button leadingIcon={mdiSync} shape="round" size="small" variant="ghost" color="secondary" loading={librarySyncing} onclick={handleLibrarySync}>
+        {$t('sync_library')}
+      </Button>
+    {/if}
   </div>
+  {#if accounts && accounts.length > 0}
+    <p class="text-xs text-gray-500 dark:text-gray-400">{$t('sync_library_description')}</p>
+  {/if}
 </div>

@@ -2316,5 +2316,9 @@
   "added_to_album": "Added to album",
   "delete_album_confirmation": "Delete this album? Your photos will not be deleted.",
   "album_assets_count": "{count, plural, one {# photo} other {# photos}}",
-  "removed_from_album": "Removed from album"
+  "removed_from_album": "Removed from album",
+  "video_playback_unsupported": "This video can't be played in the browser (unsupported codec). Download it to watch.",
+  "sync_library": "Sync library",
+  "sync_library_description": "Reconcile your library with Google Drive (fixes missing durations, thumbnails, deleted files)",
+  "sync_completed": "Sync completed"
 }

@@ -171,6 +171,16 @@ export async function getDriveThumbnailLink(auth: GoogleOAuth2Client, driveFileI
   return response.data.thumbnailLink ?? null
 }
 
+/** Media metadata (dimensions, video duration) — also populated asynchronously by Drive. */
+export async function getDriveMediaMetadata(auth: GoogleOAuth2Client, driveFileId: string) {
+  const drive = google.drive({ version: 'v3', auth })
+  const response = await drive.files.get({
+    fileId: driveFileId,
+    fields: 'imageMediaMetadata(width,height),videoMediaMetadata(durationMillis)',
+  })
+  return response.data
+}
+
 /** Fetch thumbnail bytes through the OAuth client (lh3.googleusercontent.com accepts Bearer). */
 export async function getDriveThumbnailStream(auth: GoogleOAuth2Client, thumbnailLink: string) {
   const response = await auth.request<NodeJS.ReadableStream>({

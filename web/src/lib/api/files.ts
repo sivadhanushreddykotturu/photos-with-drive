@@ -29,6 +29,20 @@ export async function deleteFile(id: string): Promise<void> {
   await apiFetch<{ status: string }>(`/files/${id}`, { method: 'DELETE' });
 }
 
+export type SyncResult = {
+  accountId: string;
+  googleAccountEmail: string;
+  created?: number;
+  updated?: number;
+  deleted?: number;
+  error?: string;
+};
+
+export async function syncGoogleFiles(): Promise<SyncResult[]> {
+  const data = await apiFetch<{ results: SyncResult[] }>('/files/sync-google', { method: 'POST' });
+  return data.results;
+}
+
 /** Inline-viewable URL for <img>/<video> tags (token query param included). */
 export function getFileMediaUrl(id: string): string {
   return buildMediaUrl(`/files/${id}/download`, { disposition: 'inline' });

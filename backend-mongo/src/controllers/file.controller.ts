@@ -12,6 +12,7 @@ import {
   ensureAppFolder,
   getAuthedGoogleClient,
   getDriveFileStream,
+  getDriveMediaMetadata,
   getDriveThumbnailLink,
   getDriveThumbnailStream,
   listAppFolderFiles,
@@ -214,10 +215,34 @@ export async function listFiles(req: AuthRequest, res: Response, next: NextFunct
   }
 }
 
-// GET /files/:id
+// GET /files/:id — lazily backfills Drive media metadata (dimensions, video
+// duration), which Drive populates asynchronously after upload.
 export async function getFile(req: AuthRequest, res: Response, next: NextFunction) {
   try {
-    return res.json({ file: serializeFile(await findOwnedFile(req)) })
+    const file = await findOwnedFile(req)
+    const isVideo = file.mimeType.startsWith('video/')
+    const missingVideoDuration = isVideo && !file.videoMediaMetadata?.duration
+    const missingImageSize = !isVideo && !file.imageMediaMetadata?.width
+
+    if (missingVideoDuration || missingImageSize) {
+      const account = await findOwnedAccount(req.user!.id, file.connectedAccountId)
+      const auth = await getAuthedGoogleClient(account)
+      const metadata = await getDriveMediaMetadata(auth, file.driveFileId).catch(() => null)
+      if (metadata) {
+        if (metadata.imageMediaMetadata && (metadata.imageMediaMetadata.width || metadata.imageMediaMetadata.height)) {
+          file.imageMediaMetadata = {
+            width: metadata.imageMediaMetadata.width ?? undefined,
+            height: metadata.imageMediaMetadata.height ?? undefined,
+          }
+        }
+        if (metadata.videoMediaMetadata?.durationMillis) {
+          file.videoMediaMetadata = { duration: Number(metadata.videoMediaMetadata.durationMillis) }
+        }
+        await file.save()
+      }
+    }
+
+    return res.json({ file: serializeFile(file) })
   } catch (error) {
     return next(error)
   }
@@ -382,17 +407,28 @@ export async function syncGoogleFiles(req: AuthRequest, res: Response, next: Nex
 
           const size = driveFile.size ? Number(driveFile.size) : 0
           const thumbChanged = (driveFile.thumbnailLink ?? null) !== (record.thumbnailLink ?? null)
+          const duration = driveFile.videoMediaMetadata?.durationMillis ? Number(driveFile.videoMediaMetadata.durationMillis) : undefined
+          const metadataChanged =
+            duration !== undefined && duration !== record.videoMediaMetadata?.duration
           if (
             record.name !== driveFile.name ||
             record.mimeType !== driveFile.mimeType ||
             record.size !== size ||
             record.isDeleted ||
-            thumbChanged
+            thumbChanged ||
+            metadataChanged
           ) {
             record.name = driveFile.name
             record.mimeType = driveFile.mimeType
             record.size = size
             record.thumbnailLink = driveFile.thumbnailLink ?? undefined
+            if (duration !== undefined) record.videoMediaMetadata = { duration }
+            if (driveFile.imageMediaMetadata) {
+              record.imageMediaMetadata = {
+                width: driveFile.imageMediaMetadata.width ?? undefined,
+                height: driveFile.imageMediaMetadata.height ?? undefined,
+              }
+            }
             record.isDeleted = false
             await record.save()
             updated += 1
