@@ -11,7 +11,8 @@ import { shareRouter } from './routes/share.routes.js'
 import { publicRouter } from './routes/public.routes.js'
 
 export const app = express()
-app.set('trust proxy', true)
+// Trust only the first proxy hop (Render's LB); 'true' is rejected by express-rate-limit v8.
+app.set('trust proxy', 1)
 
 // Allow the web app origin plus the Capacitor WebView origins used by the Android app.
 const allowedOrigins = [env.FRONTEND_URL, 'http://localhost', 'https://localhost', 'capacitor://localhost']

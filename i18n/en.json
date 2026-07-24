@@ -1090,7 +1090,9 @@
     "unable_to_connect_account": "Unable to connect the account. Please try again.",
     "unable_to_load_albums": "Unable to load albums",
     "unable_to_create_album": "Unable to create album",
-    "unable_to_create_share_link": "Unable to create share link"
+    "unable_to_create_share_link": "Unable to create share link",
+    "unable_to_send_code": "Unable to send the code. Please try again.",
+    "invalid_code": "That code is invalid or expired. Request a new one."
   },
   "errors_text": "Errors",
   "exclusion_pattern": "Exclusion pattern",
@@ -2342,5 +2344,10 @@
   "shared_album": "Shared album",
   "download_all": "Download all",
   "add_to_favorites": "Add to favorites",
-  "download_zip_limit": "ZIP downloads are limited to {count} files — the first {count} were included."
+  "download_zip_limit": "ZIP downloads are limited to {count} files — the first {count} were included.",
+  "email_code": "Email code",
+  "email_code_description": "Get a 6-digit sign-in code sent to your email — no password needed.",
+  "send_code": "Email me a code",
+  "code_sent_to": "If an account exists for {email}, a 6-digit code is on its way. It expires in 10 minutes.",
+  "use_a_different_email": "Use a different email"
 }

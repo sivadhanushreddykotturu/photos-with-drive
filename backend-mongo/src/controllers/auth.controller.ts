@@ -1,11 +1,13 @@
+import crypto from 'node:crypto'
 import type { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
+import { LoginOtp } from '../models/LoginOtp.js'
 import { User, type UserDocument } from '../models/User.js'
 import { env } from '../config/env.js'
 import { hashPassword, verifyPassword } from '../utils/password.js'
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../utils/jwt.js'
 import { hashToken, randomToken } from '../services/encryption.service.js'
-import { sendPasswordResetEmail } from '../services/email.service.js'
+import { sendLoginOtpEmail, sendPasswordResetEmail } from '../services/email.service.js'
 import { ApiError } from '../utils/api-error.js'
 import type { AuthRequest } from '../middleware/auth.middleware.js'
 
@@ -27,6 +29,15 @@ export const forgotPasswordSchema = z.object({
 export const resetPasswordSchema = z.object({
   token: z.string().min(1),
   password: z.string().min(8),
+})
+
+export const otpRequestSchema = z.object({
+  email: z.string().email(),
+})
+
+export const otpVerifySchema = z.object({
+  email: z.string().email(),
+  code: z.string().regex(/^\d{6}$/, 'Code must be 6 digits'),
 })
 
 const REFRESH_COOKIE = 'refreshToken'
@@ -189,6 +200,54 @@ export async function me(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const user = await User.findById(req.user!.id).orFail()
     return res.json({ user: publicUser(user) })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+const MAX_OTP_ATTEMPTS = 5
+
+// POST /auth/otp/request — email a 6-digit sign-in code (never reveals if the email exists).
+export async function requestOtp(req: Request, res: Response, next: NextFunction) {
+  try {
+    const body = otpRequestSchema.parse(req.body)
+    const user = await User.findOne({ email: body.email }).select('+refreshTokens')
+    if (user) {
+      const code = crypto.randomInt(100_000, 1_000_000).toString()
+      await LoginOtp.findOneAndUpdate(
+        { email: body.email },
+        { codeHash: hashToken(code), attempts: 0, createdAt: new Date() },
+        { upsert: true },
+      )
+      await sendLoginOtpEmail(user.email, code).catch((error) => {
+        console.error('Failed to send login OTP email:', error)
+      })
+    }
+    return res.json({ status: 'ok' })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+// POST /auth/otp/verify — exchange a valid code for a session.
+export async function verifyOtp(req: Request, res: Response, next: NextFunction) {
+  try {
+    const body = otpVerifySchema.parse(req.body)
+    const otp = await LoginOtp.findOne({ email: body.email })
+    if (!otp || otp.attempts >= MAX_OTP_ATTEMPTS) {
+      throw ApiError.unauthorized('OTP_INVALID', 'Code is invalid or expired.')
+    }
+
+    if (otp.codeHash !== hashToken(body.code)) {
+      otp.attempts += 1
+      await otp.save()
+      throw ApiError.unauthorized('OTP_INVALID', 'Code is invalid or expired.')
+    }
+
+    await otp.deleteOne()
+    const user = await User.findOne({ email: body.email }).select('+refreshTokens').orFail()
+    const tokens = await createSession(user, req, res)
+    return res.json({ ...tokens, user: publicUser(user) })
   } catch (error) {
     return next(error)
   }

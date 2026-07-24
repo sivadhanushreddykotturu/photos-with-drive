@@ -52,3 +52,22 @@ export async function resetPassword(token: string, password: string): Promise<vo
     skipAuthRetry: true,
   });
 }
+
+export async function requestOtp(email: string): Promise<void> {
+  await apiFetch<{ status: string }>('/auth/otp/request', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+    skipAuthRetry: true,
+  });
+}
+
+export async function verifyOtp(email: string, code: string): Promise<ApiUser> {
+  const data = await apiFetch<ApiLoginResponse>('/auth/otp/verify', {
+    method: 'POST',
+    body: JSON.stringify({ email, code }),
+    skipAuthRetry: true,
+  });
+  setAccessToken(data.accessToken);
+  setRefreshToken(data.refreshToken);
+  return data.user;
+}
