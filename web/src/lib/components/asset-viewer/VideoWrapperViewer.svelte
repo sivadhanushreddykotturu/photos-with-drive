@@ -44,11 +44,17 @@
   };
 
   const handleError = () => {
-    if (!videoPlayer?.src) {
+    // MEDIA_ERR_ABORTED fires on src swaps/navigation aborts — not a real failure.
+    if (videoPlayer?.error?.code === MediaError.MEDIA_ERR_ABORTED) {
       return;
     }
     loading = false;
     failed = true;
+  };
+
+  const handleCanPlay = () => {
+    loading = false;
+    failed = false; // recover if an earlier spurious error was shown
   };
 </script>
 
@@ -62,7 +68,8 @@
       poster={getAssetMediaUrl({ id: asset.id, size: AssetMediaSize.Thumbnail })}
       autoplay
       playsinline
-      oncanplay={() => (loading = false)}
+      oncanplay={handleCanPlay}
+      onplaying={handleCanPlay}
       onerror={handleError}
     >
       <track kind="captions" />

@@ -80,6 +80,10 @@
         // Do not show error when the URL is empty.
         return;
       }
+      if (player?.error?.code === MediaError.MEDIA_ERR_ABORTED) {
+        // Hover/src swap aborted the fetch — not a real failure.
+        return;
+      }
       error = true;
       loading = false;
     }}
