@@ -95,6 +95,13 @@ export function uploadFile(req: AuthRequest, res: Response, next: NextFunction) 
     return next(ApiError.badRequest('FILE_REQUIRED', 'No file uploaded. Send multipart field "file".'))
   }
 
+  // Pre-flight reject: fail oversize uploads before consuming any body, so the
+  // client aborts in the first KBs instead of stalling at the limit mid-stream.
+  if (contentLength > env.MAX_UPLOAD_BYTES) {
+    res.setHeader('Connection', 'close')
+    return next(new ApiError(413, 'UPLOAD_TOO_LARGE', 'Uploaded file exceeds the size limit.'))
+  }
+
   let folderIdRaw: string | undefined
   let responded = false
   const fail = (error: unknown) => {
@@ -117,8 +124,10 @@ export function uploadFile(req: AuthRequest, res: Response, next: NextFunction) 
       return
     }
 
+    // Backstop for chunked uploads without a Content-Length header.
     stream.on('limit', () => {
-      stream.resume()
+      stream.destroy()
+      res.setHeader('Connection', 'close')
       fail(new ApiError(413, 'UPLOAD_TOO_LARGE', 'Uploaded file exceeds the size limit.'))
     })
 
