@@ -310,7 +310,20 @@ export async function getFileThumbnail(req: AuthRequest, res: Response, next: Ne
         await file.save()
       }
     }
-    if (!thumbnailLink) throw ApiError.notFound('THUMBNAIL_NOT_READY', 'Thumbnail is not available yet.')
+
+    // Drive processes thumbs async — until then, fall back to the original for
+    // images so tiles always render (videos still need the poster frame).
+    if (!thumbnailLink) {
+      if (!file.mimeType.startsWith('image/')) {
+        throw ApiError.notFound('THUMBNAIL_NOT_READY', 'Thumbnail is not available yet.')
+      }
+      const stream = await getDriveFileStream(auth, file.driveFileId)
+      res.setHeader('Content-Type', file.mimeType)
+      if (file.size > 0) res.setHeader('Content-Length', file.size)
+      stream.on('error', (error: unknown) => res.destroy(error as Error))
+      stream.pipe(res)
+      return
+    }
 
     let thumbResponse
     try {

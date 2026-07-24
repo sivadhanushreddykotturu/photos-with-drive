@@ -4,7 +4,7 @@
   import { apiBaseUrl } from '$lib/api/client';
   import { getPublicSharedAlbum, getPublicSharedFile, type PublicSharedFile } from '$lib/api/share';
   import { Button, Icon, LoadingSpinner } from '@immich/ui';
-  import { mdiAlertCircleOutline, mdiDownloadOutline, mdiImageAlbum } from '@mdi/js';
+  import { mdiAlertCircleOutline, mdiChevronLeft, mdiChevronRight, mdiDownloadOutline, mdiImageAlbum } from '@mdi/js';
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
 
@@ -16,7 +16,32 @@
   let sharedAlbum: { name: string; assetCount: number } | undefined = $state();
   let albumFiles: PublicSharedFile[] = $state([]);
   let expiresAt: string | null = $state(null);
-  let viewingFile: PublicSharedFile | undefined = $state();
+  let viewingIndex: number | undefined = $state();
+
+  const viewingFile = $derived(viewingIndex !== undefined ? albumFiles[viewingIndex] : undefined);
+  const hasPrevious = $derived(viewingIndex !== undefined && viewingIndex > 0);
+  const hasNext = $derived(viewingIndex !== undefined && viewingIndex < albumFiles.length - 1);
+
+  const navigateViewing = (direction: 'previous' | 'next') => {
+    if (viewingIndex === undefined) {
+      return;
+    }
+    if (direction === 'previous' && hasPrevious) {
+      viewingIndex -= 1;
+    } else if (direction === 'next' && hasNext) {
+      viewingIndex += 1;
+    }
+  };
+
+  const handleViewerKeydown = (event: KeyboardEvent) => {
+    if (event.key === 'Escape') {
+      viewingIndex = undefined;
+    } else if (event.key === 'ArrowLeft') {
+      navigateViewing('previous');
+    } else if (event.key === 'ArrowRight') {
+      navigateViewing('next');
+    }
+  };
 
   onMount(async () => {
     try {
@@ -85,11 +110,11 @@
         <p class="text-xs text-gray-500">{$t('expires')}: {new Date(expiresAt).toLocaleDateString()}</p>
       {/if}
       <div class="grid w-full grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-        {#each albumFiles as file (file.id)}
+        {#each albumFiles as file, index (file.id)}
           <button
             type="button"
             class="group relative aspect-square overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-800"
-            onclick={() => (viewingFile = file)}
+            onclick={() => (viewingIndex = index)}
           >
             <img
               src={albumFileThumbUrl(file.id)}
@@ -108,8 +133,8 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       class="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-black/90 p-4"
-      onclick={(e) => e.target === e.currentTarget && (viewingFile = undefined)}
-      onkeydown={(e) => e.key === 'Escape' && (viewingFile = undefined)}
+      onclick={(e) => e.target === e.currentTarget && (viewingIndex = undefined)}
+      onkeydown={handleViewerKeydown}
       role="dialog"
       aria-modal="true"
       tabindex="-1"
@@ -120,13 +145,51 @@
           {$t('download')}
         </Button>
       </div>
-      {#if viewingFile.isVideo}
-        <!-- svelte-ignore a11y_media_has_caption -->
-        <video class="max-h-[80dvh] max-w-full" src={albumFileUrl(viewingFile.id, false)} controls autoplay playsinline
-        ></video>
-      {:else}
-        <img src={albumFileUrl(viewingFile.id, false)} alt={viewingFile.name} class="max-h-[80dvh] max-w-full object-contain" />
-      {/if}
+
+      <div class="relative flex h-[80dvh] w-full max-w-5xl items-center justify-center">
+        {#if hasPrevious}
+          <button
+            type="button"
+            class="absolute -start-2 z-10 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/80"
+            onclick={() => navigateViewing('previous')}
+            aria-label={$t('previous')}
+          >
+            <Icon icon={mdiChevronLeft} size="32" />
+          </button>
+        {/if}
+
+        {#key viewingFile.id}
+          {#if viewingFile.isVideo}
+            <!-- svelte-ignore a11y_media_has_caption -->
+            <video
+              class="max-h-full max-w-full"
+              src={albumFileUrl(viewingFile.id, false)}
+              controls
+              autoplay
+              playsinline
+            ></video>
+          {:else}
+            <img
+              src={albumFileUrl(viewingFile.id, false)}
+              alt={viewingFile.name}
+              class="max-h-full max-w-full object-contain"
+            />
+          {/if}
+        {/key}
+
+        {#if hasNext}
+          <button
+            type="button"
+            class="absolute -end-2 z-10 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/80"
+            onclick={() => navigateViewing('next')}
+            aria-label={$t('next')}
+          >
+            <Icon icon={mdiChevronRight} size="32" />
+          </button>
+        {/if}
+      </div>
+
+      <p class="text-xs text-gray-400">{(viewingIndex ?? 0) + 1} / {albumFiles.length}</p>
     </div>
   {/if}
 </AuthPageLayout>
