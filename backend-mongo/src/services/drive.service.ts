@@ -163,3 +163,19 @@ export async function getDriveFileStream(auth: GoogleOAuth2Client, driveFileId: 
   const response = await drive.files.get({ fileId: driveFileId, alt: 'media' }, { responseType: 'stream' })
   return response.data
 }
+
+/** Drive auto-generates thumbnails for images AND videos (poster frame), but asynchronously. */
+export async function getDriveThumbnailLink(auth: GoogleOAuth2Client, driveFileId: string) {
+  const drive = google.drive({ version: 'v3', auth })
+  const response = await drive.files.get({ fileId: driveFileId, fields: 'thumbnailLink' })
+  return response.data.thumbnailLink ?? null
+}
+
+/** Fetch thumbnail bytes through the OAuth client (lh3.googleusercontent.com accepts Bearer). */
+export async function getDriveThumbnailStream(auth: GoogleOAuth2Client, thumbnailLink: string) {
+  const response = await auth.request<NodeJS.ReadableStream>({
+    url: thumbnailLink,
+    responseType: 'stream',
+  })
+  return response
+}

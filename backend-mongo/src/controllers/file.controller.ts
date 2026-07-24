@@ -12,6 +12,8 @@ import {
   ensureAppFolder,
   getAuthedGoogleClient,
   getDriveFileStream,
+  getDriveThumbnailLink,
+  getDriveThumbnailStream,
   listAppFolderFiles,
   renameDriveFile,
   syncGoogleQuota,
@@ -226,9 +228,49 @@ export async function getFileViewUrl(req: AuthRequest, res: Response, next: Next
   try {
     const file = await findOwnedFile(req)
     return res.json({
-      url: file.thumbnailLink ?? null,
+      url: `/files/${file._id.toString()}/thumbnail`,
       downloadUrl: `/files/${file._id.toString()}/download?disposition=inline`,
     })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+// GET /files/:id/thumbnail — proxy Drive's auto-generated thumbnail (images and
+// video poster frames). Drive generates them asynchronously, so we lazily
+// refresh the stored thumbnailLink when it's missing or stale.
+export async function getFileThumbnail(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const file = await findOwnedFile(req)
+    const account = await findOwnedAccount(req.user!.id, file.connectedAccountId)
+    const auth = await getAuthedGoogleClient(account)
+
+    let thumbnailLink: string | undefined = file.thumbnailLink
+    if (!thumbnailLink) {
+      thumbnailLink = (await getDriveThumbnailLink(auth, file.driveFileId)) ?? undefined
+      if (thumbnailLink) {
+        file.thumbnailLink = thumbnailLink
+        await file.save()
+      }
+    }
+    if (!thumbnailLink) throw ApiError.notFound('THUMBNAIL_NOT_READY', 'Thumbnail is not available yet.')
+
+    let thumbResponse
+    try {
+      thumbResponse = await getDriveThumbnailStream(auth, thumbnailLink)
+    } catch {
+      // Stored link went stale (they expire) — refresh once and retry.
+      thumbnailLink = (await getDriveThumbnailLink(auth, file.driveFileId)) ?? undefined
+      if (!thumbnailLink) throw ApiError.notFound('THUMBNAIL_NOT_READY', 'Thumbnail is not available yet.')
+      file.thumbnailLink = thumbnailLink
+      await file.save()
+      thumbResponse = await getDriveThumbnailStream(auth, thumbnailLink)
+    }
+
+    res.setHeader('Content-Type', thumbResponse.headers.get('content-type') ?? 'image/jpeg')
+    res.setHeader('Cache-Control', 'private, max-age=3600')
+    ;(thumbResponse.data as NodeJS.ReadableStream).on('error', (error) => res.destroy(error))
+    ;(thumbResponse.data as NodeJS.ReadableStream).pipe(res)
   } catch (error) {
     return next(error)
   }
@@ -339,7 +381,14 @@ export async function syncGoogleFiles(req: AuthRequest, res: Response, next: Nex
           }
 
           const size = driveFile.size ? Number(driveFile.size) : 0
-          if (record.name !== driveFile.name || record.mimeType !== driveFile.mimeType || record.size !== size || record.isDeleted) {
+          const thumbChanged = (driveFile.thumbnailLink ?? null) !== (record.thumbnailLink ?? null)
+          if (
+            record.name !== driveFile.name ||
+            record.mimeType !== driveFile.mimeType ||
+            record.size !== size ||
+            record.isDeleted ||
+            thumbChanged
+          ) {
             record.name = driveFile.name
             record.mimeType = driveFile.mimeType
             record.size = size

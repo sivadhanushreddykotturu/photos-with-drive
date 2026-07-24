@@ -190,10 +190,13 @@ export const targetImageSize = (asset: AssetResponseDto, forceOriginal: boolean)
   return AssetMediaSize.Preview;
 };
 
-// The custom backend serves one media stream per file; every size maps to the
-// same inline URL (token query param attached for <img>/<video> tags).
+// Thumbnails come from Drive's generated thumbs (works for videos too);
+// preview/original map to the full media stream (token query param for <img>/<video>).
 export const getAssetMediaUrl = (options: AssetUrlOptions) => {
-  const { id } = options;
+  const { id, size } = options;
+  if (size === AssetMediaSize.Thumbnail) {
+    return buildMediaUrl(`/files/${id}/thumbnail`);
+  }
   return buildMediaUrl(`/files/${id}/download`, { disposition: 'inline' });
 };
 
