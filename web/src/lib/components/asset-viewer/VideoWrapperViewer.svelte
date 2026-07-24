@@ -7,6 +7,7 @@
   import { mdiAlertCircleOutline, mdiDownloadOutline } from '@mdi/js';
   import { useSwipe, type SwipeCustomEvent } from 'svelte-gestures';
   import { t } from 'svelte-i18n';
+  import 'media-chrome';
 
   interface Props {
     asset: AssetResponseDto;
@@ -52,19 +53,29 @@
 </script>
 
 <div class="relative size-full select-none" role="presentation" {...useSwipe((event) => onSwipe(event))}>
-  <video
-    bind:this={videoPlayer}
-    class="h-full w-full object-contain"
-    src={getAssetPlaybackUrl({ id: asset.id })}
-    poster={getAssetMediaUrl({ id: asset.id, size: AssetMediaSize.Thumbnail })}
-    controls
-    autoplay
-    playsinline
-    oncanplay={() => (loading = false)}
-    onerror={handleError}
-  >
-    <track kind="captions" />
-  </video>
+  <media-controller class="block size-full">
+    <video
+      bind:this={videoPlayer}
+      slot="media"
+      class="h-full w-full object-contain"
+      src={getAssetPlaybackUrl({ id: asset.id })}
+      poster={getAssetMediaUrl({ id: asset.id, size: AssetMediaSize.Thumbnail })}
+      autoplay
+      playsinline
+      oncanplay={() => (loading = false)}
+      onerror={handleError}
+    >
+      <track kind="captions" />
+    </video>
+    <media-control-bar class="w-full bg-linear-to-t from-black/80 px-4 py-1 text-white">
+      <media-play-button class="p-2"></media-play-button>
+      <media-time-range class="flex-1 p-2"></media-time-range>
+      <media-time-display class="p-2 text-sm" showDuration></media-time-display>
+      <media-mute-button class="p-2"></media-mute-button>
+      <media-volume-range class="w-20 p-2"></media-volume-range>
+      <media-fullscreen-button class="p-2"></media-fullscreen-button>
+    </media-control-bar>
+  </media-controller>
 
   {#if loading && !failed}
     <div class="absolute inset-0 flex items-center justify-center">

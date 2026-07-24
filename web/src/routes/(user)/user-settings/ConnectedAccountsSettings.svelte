@@ -107,18 +107,18 @@
   {:else}
     <ul class="flex flex-col gap-2">
       {#each accounts as account (account.id)}
-        <li class="flex items-center gap-3 rounded-xl border border-gray-200 p-3 dark:border-gray-700">
-          <Icon icon={mdiGoogleDrive} size="28" class="shrink-0 text-primary" />
+        <li class="flex items-start gap-4 rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+          <Icon icon={mdiGoogleDrive} size="30" class="mt-0.5 shrink-0 text-primary" />
           <div class="min-w-0 flex-1">
-            <p class="truncate text-sm font-medium">{account.googleAccountEmail}</p>
-            <p class="text-xs text-gray-500 dark:text-gray-400">
+            <p class="truncate font-semibold">{account.googleAccountEmail}</p>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
               {formatQuota(account)}
               {#if account.lastSyncedAt}
-                · {$t('last_synced')}: {$date(new Date(account.lastSyncedAt), { dateStyle: 'medium', timeStyle: 'short' })}
+                &nbsp;·&nbsp;{$t('last_synced')}: {$date(new Date(account.lastSyncedAt), { dateStyle: 'medium', timeStyle: 'short' })}
               {/if}
             </p>
             {#if account.storageQuota.total}
-              <div class="mt-1 h-1.5 w-full rounded-full bg-gray-200 dark:bg-gray-700">
+              <div class="mt-2 h-1.5 w-full rounded-full bg-gray-200 dark:bg-gray-700">
                 <div
                   class="h-1.5 rounded-full bg-immich-primary"
                   style:width="{Math.min(100, (100 * account.storageQuota.used) / account.storageQuota.total)}%"
@@ -126,25 +126,27 @@
               </div>
             {/if}
           </div>
-          <IconButton
-            shape="round"
-            color="secondary"
-            variant="ghost"
-            size="small"
-            icon={mdiRefresh}
-            aria-label={$t('sync_quota')}
-            loading={syncingId === account.id}
-            onclick={() => handleSyncQuota(account)}
-          />
-          <IconButton
-            shape="round"
-            color="danger"
-            variant="ghost"
-            size="small"
-            icon={mdiDeleteOutline}
-            aria-label={$t('disconnect_account')}
-            onclick={() => handleDisconnect(account)}
-          />
+          <div class="flex shrink-0 items-center gap-1 border-s ps-2">
+            <IconButton
+              shape="round"
+              color="secondary"
+              variant="ghost"
+              size="small"
+              icon={mdiRefresh}
+              aria-label={$t('sync_quota')}
+              loading={syncingId === account.id}
+              onclick={() => handleSyncQuota(account)}
+            />
+            <IconButton
+              shape="round"
+              color="danger"
+              variant="ghost"
+              size="small"
+              icon={mdiDeleteOutline}
+              aria-label={$t('disconnect_account')}
+              onclick={() => handleDisconnect(account)}
+            />
+          </div>
         </li>
       {/each}
     </ul>

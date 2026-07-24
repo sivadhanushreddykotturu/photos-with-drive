@@ -93,6 +93,12 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
     }
   }
 
+  // PaaS cold starts return 502/503/504 while the service wakes — retry once.
+  if ([502, 503, 504].includes(response.status) && !skipAuthRetry) {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    response = await fetch(`${apiBaseUrl}${path}`, { ...init, headers, credentials: 'include' });
+  }
+
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as ApiErrorBody | null;
     throw new ApiError(
