@@ -37,6 +37,10 @@ export const Route = {
   photos: (params?: { at?: string }) => '/photos' + asQueryString(params),
   viewAsset: ({ id }: { id: string }) => `/photos/${id}`,
 
+  // albums
+  albums: () => '/albums',
+  viewAlbum: ({ id }: { id: string }) => `/albums/${id}`,
+
   // settings
   userSettings: (params?: { isOpen?: OpenQueryParam }) => '/user-settings' + asQueryString(params),
 

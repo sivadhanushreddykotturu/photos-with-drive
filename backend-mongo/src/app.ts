@@ -6,6 +6,7 @@ import { errorMiddleware, notFoundMiddleware } from './middleware/error.middlewa
 import { authRouter } from './routes/auth.routes.js'
 import { connectedAccountRouter } from './routes/connected-account.routes.js'
 import { fileRouter } from './routes/file.routes.js'
+import { albumRouter } from './routes/album.routes.js'
 
 export const app = express()
 app.set('trust proxy', true)
@@ -27,6 +28,7 @@ app.get('/health', (_req, res) => res.json({ status: 'ok' }))
 app.use('/auth', authRouter)
 app.use('/connected-accounts', connectedAccountRouter)
 app.use('/files', fileRouter)
+app.use('/albums', albumRouter)
 
 app.use(notFoundMiddleware)
 app.use(errorMiddleware)

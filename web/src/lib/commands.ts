@@ -1,5 +1,5 @@
 import { defaultProvider, themeManager, ThemePreference, type ActionItem } from '@immich/ui';
-import { mdiCog, mdiImageMultipleOutline, mdiKeyboard, mdiThemeLightDark } from '@mdi/js';
+import { mdiCog, mdiImageAlbum, mdiImageMultipleOutline, mdiKeyboard, mdiThemeLightDark } from '@mdi/js';
 import type { MessageFormatter } from 'svelte-i18n';
 import { goto } from '$app/navigation';
 import { authManager } from '$lib/managers/auth-manager.svelte';
@@ -11,6 +11,11 @@ export const getPagesProvider = ($t: MessageFormatter) => {
       title: $t('photos'),
       icon: mdiImageMultipleOutline,
       onAction: () => goto(Route.photos()),
+    },
+    {
+      title: $t('albums'),
+      icon: mdiImageAlbum,
+      onAction: () => goto(Route.albums()),
     },
     {
       title: $t('admin.user_settings'),

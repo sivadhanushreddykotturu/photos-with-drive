@@ -1,5 +1,6 @@
 import type { NextFunction, Response } from 'express'
 import { z } from 'zod'
+import { Album } from '../models/Album.js'
 import { ConnectedAccount, type ConnectedAccountDocument } from '../models/ConnectedAccount.js'
 import { FileRecord } from '../models/FileRecord.js'
 import { OauthState } from '../models/OauthState.js'
@@ -111,7 +112,14 @@ export async function deleteConnectedAccount(req: AuthRequest, res: Response, ne
 
     await revokeGoogleAccount(account)
     // Files in that Drive account are unreachable once disconnected — remove their records.
+    const removedFiles = await FileRecord.find({ connectedAccountId: account._id, userId: req.user!.id }).select('_id')
     await FileRecord.deleteMany({ connectedAccountId: account._id, userId: req.user!.id })
+    if (removedFiles.length > 0) {
+      await Album.updateMany(
+        { userId: req.user!.id, assetIds: { $in: removedFiles.map((file) => file._id) } },
+        { $pull: { assetIds: { $in: removedFiles.map((file) => file._id) } } },
+      )
+    }
     await account.deleteOne()
     return res.json({ status: 'ok' })
   } catch (error) {

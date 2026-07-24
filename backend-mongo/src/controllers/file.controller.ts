@@ -2,6 +2,7 @@ import { Readable } from 'node:stream'
 import type { NextFunction, Response } from 'express'
 import mongoose from 'mongoose'
 import { z } from 'zod'
+import { Album } from '../models/Album.js'
 import { ConnectedAccount } from '../models/ConnectedAccount.js'
 import { FileRecord, type FileRecordDocument } from '../models/FileRecord.js'
 import { VirtualFolder } from '../models/VirtualFolder.js'
@@ -251,6 +252,8 @@ export async function deleteFile(req: AuthRequest, res: Response, next: NextFunc
     }
     file.isDeleted = true
     await file.save()
+    // Remove the deleted file from every album it belonged to.
+    await Album.updateMany({ userId: req.user!.id, assetIds: file._id }, { $pull: { assetIds: file._id } })
     return res.json({ status: 'ok' })
   } catch (error) {
     return next(error)
@@ -303,6 +306,13 @@ export async function syncGoogleFiles(req: AuthRequest, res: Response, next: Nex
             await record.save()
             deleted += 1
           }
+        }
+        if (deleted > 0) {
+          const removedIds = existing.filter((record) => record.isDeleted).map((record) => record._id)
+          await Album.updateMany(
+            { userId: req.user!.id, assetIds: { $in: removedIds } },
+            { $pull: { assetIds: { $in: removedIds } } },
+          )
         }
 
         await syncGoogleQuota(account._id.toString()).catch(() => undefined)

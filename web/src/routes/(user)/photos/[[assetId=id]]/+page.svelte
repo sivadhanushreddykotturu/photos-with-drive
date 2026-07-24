@@ -2,6 +2,7 @@
   import UserPageLayout from '$lib/components/layouts/UserPageLayout.svelte';
   import ButtonContextMenu from '$lib/components/shared-components/context-menu/ButtonContextMenu.svelte';
   import EmptyPlaceholder from '$lib/components/shared-components/EmptyPlaceholder.svelte';
+  import AddToAlbumAction from '$lib/components/timeline/actions/AddToAlbumAction.svelte';
   import DeleteAssets from '$lib/components/timeline/actions/DeleteAssetsAction.svelte';
   import DownloadAction from '$lib/components/timeline/actions/DownloadAction.svelte';
   import SelectAllAssets from '$lib/components/timeline/actions/SelectAllAction.svelte';
@@ -65,6 +66,7 @@
   <AssetSelectControlBar>
     <SelectAllAssets {timelineManager} assetInteraction={assetMultiSelectManager} />
     <ButtonContextMenu icon={mdiDotsVertical} title={$t('menu')}>
+      <AddToAlbumAction />
       <DownloadAction menuItem />
       <DeleteAssets
         menuItem

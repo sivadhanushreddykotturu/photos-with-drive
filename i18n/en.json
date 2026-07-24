@@ -1087,7 +1087,9 @@
     "unable_to_upload_file": "Unable to upload file",
     "unable_to_load_accounts": "Unable to load connected accounts",
     "unable_to_save_changes": "Unable to save changes",
-    "unable_to_connect_account": "Unable to connect the account. Please try again."
+    "unable_to_connect_account": "Unable to connect the account. Please try again.",
+    "unable_to_load_albums": "Unable to load albums",
+    "unable_to_create_album": "Unable to create album"
   },
   "errors_text": "Errors",
   "exclusion_pattern": "Exclusion pattern",
@@ -2310,5 +2312,9 @@
   "connect_account_to_get_started": "Connect a Google Drive account to get started",
   "go_to_settings": "Go to settings",
   "account_connected_successfully": "Google Drive account connected successfully",
-  "redirecting": "Redirecting..."
+  "redirecting": "Redirecting...",
+  "added_to_album": "Added to album",
+  "delete_album_confirmation": "Delete this album? Your photos will not be deleted.",
+  "album_assets_count": "{count, plural, one {# photo} other {# photos}}",
+  "removed_from_album": "Removed from album"
 }
