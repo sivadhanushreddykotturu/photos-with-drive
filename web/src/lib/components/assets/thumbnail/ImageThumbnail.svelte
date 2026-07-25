@@ -21,6 +21,7 @@
     class?: ClassValue;
     brokenAssetClass?: ClassValue;
     preload?: boolean;
+    hideBrokenOnError?: boolean;
     onComplete?: ((errored: boolean) => void) | undefined;
   }
 
@@ -41,6 +42,7 @@
     class: imageClass = '',
     brokenAssetClass = '',
     preload = true,
+    hideBrokenOnError = false,
   }: Props = $props();
 
   let loaded = $state(false);
@@ -71,7 +73,10 @@
   );
 </script>
 
-{#if errored}
+{#if errored && hideBrokenOnError}
+  <!-- Neutral tile instead of the broken-image icon (e.g. video poster not ready yet). -->
+  <div class={['bg-gray-300 object-cover dark:bg-gray-700', sharedClasses]} {style}></div>
+{:else if errored}
   <BrokenAsset class={[sharedClasses, brokenAssetClass]} width={widthStyle} height={heightStyle} />
 {:else}
   <Image

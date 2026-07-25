@@ -567,6 +567,10 @@ export async function syncGoogleFiles(req: AuthRequest, res: Response, next: Nex
             continue
           }
 
+          // Trashed records stay trashed — sync never resurrects. Restoring is
+          // an explicit user action from the Trash page.
+          if (record.isDeleted) continue
+
           const size = driveFile.size ? Number(driveFile.size) : 0
           const thumbChanged = (driveFile.thumbnailLink ?? null) !== (record.thumbnailLink ?? null)
           const duration = driveFile.videoMediaMetadata?.durationMillis ? Number(driveFile.videoMediaMetadata.durationMillis) : undefined
@@ -576,7 +580,6 @@ export async function syncGoogleFiles(req: AuthRequest, res: Response, next: Nex
             record.name !== driveFile.name ||
             record.mimeType !== driveFile.mimeType ||
             record.size !== size ||
-            record.isDeleted ||
             thumbChanged ||
             metadataChanged
           ) {
@@ -591,7 +594,6 @@ export async function syncGoogleFiles(req: AuthRequest, res: Response, next: Nex
                 height: driveFile.imageMediaMetadata.height ?? undefined,
               }
             }
-            record.isDeleted = false
             await record.save()
             updated += 1
           }
