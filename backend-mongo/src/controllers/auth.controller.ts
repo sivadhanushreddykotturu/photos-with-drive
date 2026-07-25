@@ -7,23 +7,25 @@ import { env } from '../config/env.js'
 import { hashPassword, verifyPassword } from '../utils/password.js'
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../utils/jwt.js'
 import { hashToken, randomToken } from '../services/encryption.service.js'
-import { sendLoginOtpEmail, sendPasswordResetEmail, sendVerificationEmail } from '../services/email.service.js'
+import { sendLoginOtpEmail, sendNewLoginEmail, sendPasswordResetEmail, sendVerificationEmail } from '../services/email.service.js'
 import { ApiError } from '../utils/api-error.js'
 import type { AuthRequest } from '../middleware/auth.middleware.js'
 
+const emailField = z.string().trim().toLowerCase().email()
+
 export const registerSchema = z.object({
   name: z.string().trim().min(2),
-  email: z.string().email(),
+  email: emailField,
   password: z.string().min(8),
 })
 
 export const loginSchema = z.object({
-  email: z.string().email(),
+  email: emailField,
   password: z.string().min(1),
 })
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().email(),
+  email: emailField,
 })
 
 export const resetPasswordSchema = z.object({
@@ -32,20 +34,20 @@ export const resetPasswordSchema = z.object({
 })
 
 export const otpRequestSchema = z.object({
-  email: z.string().email(),
+  email: emailField,
 })
 
 export const otpVerifySchema = z.object({
-  email: z.string().email(),
+  email: emailField,
   code: z.string().regex(/^\d{6}$/, 'Code must be 6 digits'),
 })
 
 export const emailSchema = z.object({
-  email: z.string().email(),
+  email: emailField,
 })
 
 export const resetPasswordWithCodeSchema = z.object({
-  email: z.string().email(),
+  email: emailField,
   code: z.string().regex(/^\d{6}$/, 'Code must be 6 digits'),
   password: z.string().min(8),
 })
@@ -111,6 +113,29 @@ async function createSession(user: UserDocument, req: Request, res: Response) {
 
 function readRefreshToken(req: Request) {
   return (req.cookies?.[REFRESH_COOKIE] as string | undefined) ?? (req.body?.refreshToken as string | undefined)
+}
+
+// Fire-and-forget: email the user about a new sign-in, with a one-click
+// "sign out everywhere" link (single-use token, valid 24h).
+function notifyNewLogin(user: UserDocument, req: Request) {
+  void (async () => {
+    try {
+      const revokeToken = randomToken()
+      user.passwordResetToken = hashToken(revokeToken)
+      user.passwordResetExpires = new Date(Date.now() + 24 * 60 * 60 * 1000)
+      await user.save()
+
+      const revokeUrl = `${req.protocol}://${req.get('host')}/auth/revoke-sessions?token=${revokeToken}`
+      await sendNewLoginEmail(user.email, {
+        device: (req.header('User-Agent') ?? 'Unknown device').slice(0, 140),
+        ip: req.ip,
+        time: new Date(),
+        revokeUrl,
+      })
+    } catch (error) {
+      console.error('Failed to send new-login notification:', error)
+    }
+  })()
 }
 
 export async function register(req: Request, res: Response, next: NextFunction) {
@@ -188,6 +213,7 @@ export async function login(req: Request, res: Response, next: NextFunction) {
       throw ApiError.forbidden('EMAIL_NOT_VERIFIED', 'Confirm your email first — we sent you a code at registration.')
     }
     const tokens = await createSession(user, req, res)
+    notifyNewLogin(user, req)
     return res.json({ ...tokens, user: publicUser(user) })
   } catch (error) {
     return next(error)
@@ -307,7 +333,37 @@ export async function verifyOtp(req: Request, res: Response, next: NextFunction)
 
     const user = await User.findOne({ email: body.email }).select('+refreshTokens').orFail()
     const tokens = await createSession(user, req, res)
+    notifyNewLogin(user, req)
     return res.json({ ...tokens, user: publicUser(user) })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+// GET /auth/revoke-sessions?token= — one-click "sign out everywhere" from the
+// new-login alert email. Public (token-gated), works from any device.
+export async function revokeSessions(req: Request, res: Response, next: NextFunction) {
+  try {
+    const token = z.string().min(1).parse(req.query.token)
+    const user = await User.findOne({
+      passwordResetToken: hashToken(token),
+      passwordResetExpires: { $gt: new Date() },
+    }).select('+passwordResetToken +passwordResetExpires +refreshTokens')
+    if (!user) {
+      return res
+        .status(400)
+        .send('<h2 style="font-family:sans-serif">This sign-out link is invalid or expired.</h2>')
+    }
+
+    user.refreshTokens = []
+    user.passwordResetToken = undefined
+    user.passwordResetExpires = undefined
+    await user.save()
+
+    res.clearCookie(REFRESH_COOKIE, { path: '/auth' })
+    return res.send(
+      '<h2 style="font-family:sans-serif">All sessions have been signed out. You can close this tab and sign in again.</h2>',
+    )
   } catch (error) {
     return next(error)
   }

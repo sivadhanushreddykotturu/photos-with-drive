@@ -122,3 +122,25 @@ export async function sendPasswordResetEmail(to: string, code: string) {
     }),
   )
 }
+
+export async function sendNewLoginEmail(
+  to: string,
+  details: { device: string; ip: string | undefined; time: Date; revokeUrl: string },
+) {
+  const html = renderEmailTemplate({
+    heading: 'New sign-in to your account',
+    body: `
+      A new sign-in just happened on your PhotoDrive account:<br><br>
+      <b>Device:</b> ${details.device}<br>
+      <b>IP:</b> ${details.ip ?? 'unknown'}<br>
+      <b>Time:</b> ${details.time.toUTCString()}<br><br>
+      If this was you, you can ignore this email.<br>
+      <b>If this wasn't you</b>, secure your account immediately — it signs out every session:
+      <div style="margin:24px 0;text-align:center;">
+        <a href="${details.revokeUrl}" style="display:inline-block;padding:12px 28px;background:#ef4444;color:#ffffff;text-decoration:none;font-weight:700;border-radius:9999px;">Sign out everywhere</a>
+      </div>
+    `,
+    footerNote: 'The sign-out link expires in 24 hours and works once.',
+  })
+  await sendEmail(to, 'New sign-in to your PhotoDrive account', html)
+}

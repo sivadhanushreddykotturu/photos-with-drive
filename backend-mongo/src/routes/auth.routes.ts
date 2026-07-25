@@ -17,4 +17,5 @@ authRouter.post('/forgot-password', emailRateLimiter, authController.forgotPassw
 authRouter.post('/reset-password', emailRateLimiter, authController.resetPassword)
 authRouter.post('/otp/request', emailRateLimiter, authController.requestOtp)
 authRouter.post('/otp/verify', authController.verifyOtp)
+authRouter.get('/revoke-sessions', authController.revokeSessions)
 authRouter.get('/me', requireAuth, authController.me)
