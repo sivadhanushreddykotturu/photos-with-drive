@@ -125,7 +125,7 @@ function notifyNewLogin(user: UserDocument, req: Request) {
       user.passwordResetExpires = new Date(Date.now() + 24 * 60 * 60 * 1000)
       await user.save()
 
-      const revokeUrl = `${req.protocol}://${req.get('host')}/auth/revoke-sessions?token=${revokeToken}`
+      const revokeUrl = `${env.FRONTEND_URL}/auth/sign-out-everywhere?token=${revokeToken}`
       await sendNewLoginEmail(user.email, {
         device: (req.header('User-Agent') ?? 'Unknown device').slice(0, 140),
         ip: req.ip,
@@ -340,19 +340,18 @@ export async function verifyOtp(req: Request, res: Response, next: NextFunction)
   }
 }
 
-// GET /auth/revoke-sessions?token= — one-click "sign out everywhere" from the
+// GET+POST /auth/revoke-sessions — one-click "sign out everywhere" from the
 // new-login alert email. Public (token-gated), works from any device.
 export async function revokeSessions(req: Request, res: Response, next: NextFunction) {
   try {
-    const token = z.string().min(1).parse(req.query.token)
+    const rawToken = req.method === 'POST' ? req.body?.token : req.query.token
+    const token = z.string().min(1).parse(rawToken)
     const user = await User.findOne({
       passwordResetToken: hashToken(token),
       passwordResetExpires: { $gt: new Date() },
     }).select('+passwordResetToken +passwordResetExpires +refreshTokens')
     if (!user) {
-      return res
-        .status(400)
-        .send('<h2 style="font-family:sans-serif">This sign-out link is invalid or expired.</h2>')
+      throw ApiError.badRequest('REVOKE_TOKEN_INVALID', 'This sign-out link is invalid or expired.')
     }
 
     user.refreshTokens = []
@@ -361,9 +360,7 @@ export async function revokeSessions(req: Request, res: Response, next: NextFunc
     await user.save()
 
     res.clearCookie(REFRESH_COOKIE, { path: '/auth' })
-    return res.send(
-      '<h2 style="font-family:sans-serif">All sessions have been signed out. You can close this tab and sign in again.</h2>',
-    )
+    return res.json({ status: 'ok' })
   } catch (error) {
     return next(error)
   }

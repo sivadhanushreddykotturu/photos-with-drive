@@ -2354,5 +2354,8 @@
   "cancel_all": "Cancel all",
   "upload_no_space": "{file} ({size}) is larger than the free space on any of your connected drives. Free up space or connect another drive.",
   "free": "free",
-  "upload_file_too_large": "{file} ({size}) exceeds the 300 MB per-file limit."
+  "upload_file_too_large": "{file} ({size}) exceeds the 300 MB per-file limit.",
+  "sign_out_everywhere": "Sign out everywhere",
+  "signed_out_everywhere": "All sessions have been signed out. Sign in again to continue.",
+  "sign_out_link_invalid": "This sign-out link is invalid or has expired."
 }
