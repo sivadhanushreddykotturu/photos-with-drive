@@ -89,6 +89,28 @@ async function findOwnedAccount(userId: string, accountId: mongoose.Types.Object
 // POST /files/upload (multipart, field "file", optional "folderId")
 // Streams the request body straight into Drive (busboy) — the file is never
 // buffered in server memory, so large uploads can't OOM the instance.
+
+// Photo/video library allowlist. SVG is excluded: served inline it can carry
+// scripts (XSS within our origin). Backend enforces this regardless of what
+// the frontend claims.
+const UPLOAD_ALLOWED_MIME = /^(image|video)\//
+const UPLOAD_BLOCKED_MIME = new Set(['image/svg+xml'])
+const UPLOAD_ALLOWED_EXTENSIONS = new Set([
+  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.heic', '.heif', '.bmp', '.tiff',
+  '.mp4', '.mov', '.webm', '.mkv', '.avi', '.m4v', '.3gp', '.mpg', '.mpeg',
+])
+
+function assertAllowedUpload(fileName: string, mimeType: string) {
+  const extension = fileName.toLowerCase().slice(fileName.toLowerCase().lastIndexOf('.'))
+  if (
+    !UPLOAD_ALLOWED_MIME.test(mimeType) ||
+    UPLOAD_BLOCKED_MIME.has(mimeType) ||
+    !UPLOAD_ALLOWED_EXTENSIONS.has(extension)
+  ) {
+    throw new ApiError(415, 'UNSUPPORTED_MEDIA_TYPE', 'Only image and video files are accepted.')
+  }
+}
+
 export function uploadFile(req: AuthRequest, res: Response, next: NextFunction) {
   const contentLength = Number(req.headers['content-length'] ?? 0)
   if (!contentLength) {
@@ -135,17 +157,23 @@ export function uploadFile(req: AuthRequest, res: Response, next: NextFunction) 
       try {
         // content-length includes multipart overhead; close enough for account picking.
         const approxSize = contentLength
+
+        // busboy decodes filenames as latin1; recover UTF-8 names.
+        const fileName = Buffer.from(info.filename, 'latin1').toString('utf8')
+        assertAllowedUpload(fileName, info.mimeType || 'application/octet-stream')
+
         const folderId = parseFolderId(folderIdRaw)
         await assertFolderOwnership(req.user!.id, folderId)
 
         const accounts = await ConnectedAccount.find({ userId: req.user!.id }).select('+accessToken +refreshToken')
         if (accounts.length === 0) throw ApiError.badRequest('NO_CONNECTED_ACCOUNT', 'Connect a Google Drive account first.')
 
+        // Fresh quota from Drive before picking — cached numbers drift when the
+        // user adds/removes files outside the app.
+        await Promise.all(accounts.map((account) => syncGoogleQuota(account._id.toString()).catch(() => undefined)))
+
         const account = pickUploadAccount(accounts, approxSize)
         if (!account) throw new ApiError(413, 'INSUFFICIENT_STORAGE', 'No connected account has enough free space.')
-
-        // busboy decodes filenames as latin1; recover UTF-8 names.
-        const fileName = Buffer.from(info.filename, 'latin1').toString('utf8')
 
         const auth = await getAuthedGoogleClient(account)
         const appFolderId = await ensureAppFolder(auth)

@@ -1,10 +1,14 @@
 <script lang="ts">
   import { locale } from '$lib/stores/preferences.store';
+  import { connectedAccountsStore } from '$lib/stores/connected-accounts.svelte';
+  import { eventManager } from '$lib/managers/event-manager.svelte';
   import { uploadAssetsStore } from '$lib/stores/upload';
   import { cancelAllUploads, uploadExecutionQueue } from '$lib/utils/file-uploader';
+  import { getByteUnitString } from '$lib/utils/byte-units';
   import { acquireWakeLock, releaseWakeLock } from '$lib/utils/wakelock.svelte';
   import { Icon, IconButton, toastManager } from '@immich/ui';
   import { mdiCancel, mdiCloseCircleMultipleOutline, mdiCloudUploadOutline, mdiCog, mdiWindowMinimize } from '@mdi/js';
+  import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
   import { quartInOut } from 'svelte/easing';
   import { fade, scale } from 'svelte/transition';
@@ -18,9 +22,17 @@
 
   let hasRemaining = $derived($remainingUploads > 0);
 
+  // Refresh quota display as uploads complete (server bumps `used` per file).
+  onMount(() =>
+    eventManager.on({
+      AssetsUpload: () => void connectedAccountsStore.load(true),
+    }),
+  );
+
   $effect(() => {
     if ($isUploading) {
       showDetail = true;
+      void connectedAccountsStore.load();
     }
   });
 
@@ -147,6 +159,31 @@
             <UploadAssetPreview {uploadAsset} />
           {/each}
         </div>
+
+        {#if connectedAccountsStore.accounts && connectedAccountsStore.accounts.length > 0}
+          <div class="mt-3 flex flex-col gap-1.5 border-t border-gray-200 pt-3 dark:border-gray-700">
+            {#each connectedAccountsStore.accounts as account (account.id)}
+              {@const usedPercent = account.storageQuota.total
+                ? Math.min(100, (100 * account.storageQuota.used) / account.storageQuota.total)
+                : 0}
+              <div class="flex items-center gap-2 text-xs">
+                <span class="w-28 truncate text-gray-600 dark:text-gray-400" title={account.googleAccountEmail}>
+                  {account.googleAccountEmail}
+                </span>
+                <div class="h-1.5 flex-1 rounded-full bg-gray-200 dark:bg-gray-700">
+                  <div class="h-1.5 rounded-full bg-immich-primary transition-all" style:width="{usedPercent}%"></div>
+                </div>
+                <span class="shrink-0 text-gray-500 dark:text-gray-400">
+                  {#if account.storageQuota.total}
+                    {getByteUnitString(account.storageQuota.total - account.storageQuota.used, $locale)} {$t('free')}
+                  {:else}
+                    ∞
+                  {/if}
+                </span>
+              </div>
+            {/each}
+          </div>
+        {/if}
       </div>
     {:else}
       <div class="rounded-full">

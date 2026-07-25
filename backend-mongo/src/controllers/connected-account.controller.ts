@@ -94,6 +94,18 @@ export async function listConnectedAccounts(req: AuthRequest, res: Response, nex
   }
 }
 
+// GET /connected-accounts/quota — sync all accounts' quotas from Drive and return them fresh.
+export async function getFreshQuotas(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const accounts = await ConnectedAccount.find({ userId: req.user!.id }).sort({ createdAt: -1 })
+    await Promise.all(accounts.map((account) => syncGoogleQuota(account._id.toString()).catch(() => undefined)))
+    const fresh = await ConnectedAccount.find({ userId: req.user!.id }).sort({ createdAt: -1 })
+    return res.json({ accounts: fresh.map(serializeAccount) })
+  } catch (error) {
+    return next(error)
+  }
+}
+
 export async function syncAccountQuota(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const account = await ConnectedAccount.findOne({ _id: req.params.id, userId: req.user!.id })

@@ -15,7 +15,7 @@ const envSchema = z.object({
 
   ENCRYPTION_KEY: z.string().min(32),
 
-  MAX_UPLOAD_BYTES: z.coerce.number().default(5 * 1024 * 1024 * 1024),
+  MAX_UPLOAD_BYTES: z.coerce.number().default(300 * 1024 * 1024),
 
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),

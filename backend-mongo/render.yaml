@@ -30,4 +30,5 @@ services:
       - key: REFRESH_TOKEN_TTL_DAYS
         value: "30"
       - key: MAX_UPLOAD_BYTES
-        value: "5368709120"
+        value: "314572800"
+

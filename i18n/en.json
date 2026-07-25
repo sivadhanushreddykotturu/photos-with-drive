@@ -2351,5 +2351,8 @@
   "code_sent_to": "If an account exists for {email}, a 6-digit code is on its way. It expires in 10 minutes.",
   "use_a_different_email": "Use a different email",
   "resend_code": "Resend code",
-  "cancel_all": "Cancel all"
+  "cancel_all": "Cancel all",
+  "upload_no_space": "{file} ({size}) is larger than the free space on any of your connected drives. Free up space or connect another drive.",
+  "free": "free",
+  "upload_file_too_large": "{file} ({size}) exceeds the 300 MB per-file limit."
 }

@@ -16,6 +16,12 @@ export async function syncAccountQuota(id: string): Promise<StorageQuota> {
   return data.quota;
 }
 
+/** Syncs every account's quota from Drive server-side and returns them fresh. */
+export async function getFreshQuotas(): Promise<ConnectedAccount[]> {
+  const data = await apiFetch<{ accounts: ConnectedAccount[] }>('/connected-accounts/quota');
+  return data.accounts;
+}
+
 export async function deleteConnectedAccount(id: string): Promise<void> {
   await apiFetch<{ status: string }>(`/connected-accounts/${id}`, { method: 'DELETE' });
 }

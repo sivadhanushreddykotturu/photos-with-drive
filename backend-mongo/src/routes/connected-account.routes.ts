@@ -11,5 +11,6 @@ connectedAccountRouter.use(requireAuth)
 
 connectedAccountRouter.get('/google/connect-url', connectedAccountController.googleConnectUrl)
 connectedAccountRouter.get('/', connectedAccountController.listConnectedAccounts)
+connectedAccountRouter.get('/quota', connectedAccountController.getFreshQuotas)
 connectedAccountRouter.post('/:id/sync-quota', connectedAccountController.syncAccountQuota)
 connectedAccountRouter.delete('/:id', connectedAccountController.deleteConnectedAccount)
