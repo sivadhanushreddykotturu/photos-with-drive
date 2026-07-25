@@ -181,7 +181,7 @@ export async function getPublicSharedThumbnail(req: Request, res: Response, next
 
     const thumbResponse = await getDriveThumbnailStream(auth, thumbnailLink)
     res.setHeader('Content-Type', thumbResponse.headers.get('content-type') ?? 'image/jpeg')
-    res.setHeader('Cache-Control', 'public, max-age=3600')
+    res.setHeader('Cache-Control', 'public, max-age=2592000, immutable')
     ;(thumbResponse.data as NodeJS.ReadableStream).on('error', (error) => res.destroy(error))
     ;(thumbResponse.data as NodeJS.ReadableStream).pipe(res)
   } catch (error) {
@@ -246,7 +246,7 @@ export async function getPublicAlbumFileThumbnail(req: Request, res: Response, n
 
     const thumbResponse = await getDriveThumbnailStream(auth, thumbnailLink)
     res.setHeader('Content-Type', thumbResponse.headers.get('content-type') ?? 'image/jpeg')
-    res.setHeader('Cache-Control', 'public, max-age=3600')
+    res.setHeader('Cache-Control', 'public, max-age=2592000, immutable')
     ;(thumbResponse.data as NodeJS.ReadableStream).on('error', (error) => res.destroy(error))
     ;(thumbResponse.data as NodeJS.ReadableStream).pipe(res)
   } catch (error) {

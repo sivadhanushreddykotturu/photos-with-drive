@@ -93,20 +93,52 @@ async function findOwnedAccount(userId: string, accountId: mongoose.Types.Object
 // Photo/video library allowlist. SVG is excluded: served inline it can carry
 // scripts (XSS within our origin). Backend enforces this regardless of what
 // the frontend claims.
-const UPLOAD_ALLOWED_MIME = /^(image|video)\//
+// NOTE: gallery pickers (especially Android WebViews) often report
+// application/octet-stream or an empty MIME — the extension is the reliable
+// signal, MIME is the cross-check when it's meaningful.
 const UPLOAD_BLOCKED_MIME = new Set(['image/svg+xml'])
+const UPLOAD_TRUSTED_MIME = /^(image|video)\//
 const UPLOAD_ALLOWED_EXTENSIONS = new Set([
   '.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.heic', '.heif', '.bmp', '.tiff',
   '.mp4', '.mov', '.webm', '.mkv', '.avi', '.m4v', '.3gp', '.mpg', '.mpeg',
 ])
+const UPLOAD_VAGUE_MIME = new Set(['', 'application/octet-stream', 'binary/octet-stream'])
+
+const EXTENSION_MIME: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.avif': 'image/avif',
+  '.heic': 'image/heic',
+  '.heif': 'image/heif',
+  '.bmp': 'image/bmp',
+  '.tiff': 'image/tiff',
+  '.mp4': 'video/mp4',
+  '.mov': 'video/quicktime',
+  '.webm': 'video/webm',
+  '.mkv': 'video/x-matroska',
+  '.avi': 'video/x-msvideo',
+  '.m4v': 'video/x-m4v',
+  '.3gp': 'video/3gpp',
+  '.mpg': 'video/mpeg',
+  '.mpeg': 'video/mpeg',
+}
 
 function assertAllowedUpload(fileName: string, mimeType: string) {
   const extension = fileName.toLowerCase().slice(fileName.toLowerCase().lastIndexOf('.'))
-  if (
-    !UPLOAD_ALLOWED_MIME.test(mimeType) ||
-    UPLOAD_BLOCKED_MIME.has(mimeType) ||
-    !UPLOAD_ALLOWED_EXTENSIONS.has(extension)
-  ) {
+  const mime = mimeType.toLowerCase()
+
+  if (!UPLOAD_ALLOWED_EXTENSIONS.has(extension)) {
+    throw new ApiError(415, 'UNSUPPORTED_MEDIA_TYPE', 'Only image and video files are accepted.')
+  }
+  if (UPLOAD_BLOCKED_MIME.has(mime)) {
+    throw new ApiError(415, 'UNSUPPORTED_MEDIA_TYPE', 'SVG files are not accepted.')
+  }
+  // When the picker reports a real type, it must be image/video. Vague/empty
+  // types pass on the strength of the extension.
+  if (!UPLOAD_VAGUE_MIME.has(mime) && !UPLOAD_TRUSTED_MIME.test(mime)) {
     throw new ApiError(415, 'UNSUPPORTED_MEDIA_TYPE', 'Only image and video files are accepted.')
   }
 }
@@ -160,7 +192,10 @@ export function uploadFile(req: AuthRequest, res: Response, next: NextFunction) 
 
         // busboy decodes filenames as latin1; recover UTF-8 names.
         const fileName = Buffer.from(info.filename, 'latin1').toString('utf8')
-        assertAllowedUpload(fileName, info.mimeType || 'application/octet-stream')
+        const rawMime = (info.mimeType || '').toLowerCase()
+        const extension = fileName.toLowerCase().slice(fileName.toLowerCase().lastIndexOf('.'))
+        const mimeType = UPLOAD_VAGUE_MIME.has(rawMime) ? (EXTENSION_MIME[extension] ?? 'application/octet-stream') : rawMime
+        assertAllowedUpload(fileName, mimeType)
 
         const folderId = parseFolderId(folderIdRaw)
         await assertFolderOwnership(req.user!.id, folderId)
@@ -180,7 +215,7 @@ export function uploadFile(req: AuthRequest, res: Response, next: NextFunction) 
 
         const driveFile = await uploadFileToDrive(auth, appFolderId, {
           name: fileName,
-          mimeType: info.mimeType || 'application/octet-stream',
+          mimeType,
           body: stream,
         })
 
@@ -189,7 +224,7 @@ export function uploadFile(req: AuthRequest, res: Response, next: NextFunction) 
           connectedAccountId: account._id,
           driveFileId: driveFile.id,
           name: driveFile.name ?? fileName,
-          mimeType: driveFile.mimeType ?? info.mimeType,
+          mimeType: driveFile.mimeType ?? mimeType,
           size: driveFile.size ? Number(driveFile.size) : approxSize,
           thumbnailLink: driveFile.thumbnailLink ?? undefined,
           imageMediaMetadata: driveFile.imageMediaMetadata
@@ -378,7 +413,8 @@ export async function getFileThumbnail(req: AuthRequest, res: Response, next: Ne
     }
 
     res.setHeader('Content-Type', thumbResponse.headers.get('content-type') ?? 'image/jpeg')
-    res.setHeader('Cache-Control', 'private, max-age=3600')
+    // Thumbnails are effectively immutable per file — cache long for instant repeat views.
+    res.setHeader('Cache-Control', 'private, max-age=2592000, immutable')
     ;(thumbResponse.data as NodeJS.ReadableStream).on('error', (error) => res.destroy(error))
     ;(thumbResponse.data as NodeJS.ReadableStream).pipe(res)
   } catch (error) {

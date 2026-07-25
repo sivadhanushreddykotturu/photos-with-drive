@@ -70,6 +70,11 @@ class MediaStore {
     }
   }
 
+  /** Synchronous lookup — the grid's data is already in memory, no fetch needed. */
+  findFile(id: string): FileRecord | undefined {
+    return this.#files?.find((file) => file.id === id);
+  }
+
   /** Month buckets for TimelineManager initialization. */
   async getMonthBuckets(): Promise<TimeBucketResponseDto[]> {
     const files = await this.load();

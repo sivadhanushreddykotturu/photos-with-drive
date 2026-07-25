@@ -1,7 +1,9 @@
 import { goto } from '$app/navigation';
 import { page } from '$app/state';
 import type { RouteId } from '$app/types';
+import { fileRecordToAssetDto } from '$lib/api/compat';
 import { assetCacheManager } from '$lib/managers/AssetCacheManager.svelte';
+import { mediaStore } from '$lib/managers/timeline-manager/internal/media-store.svelte';
 import { Route } from '$lib/route';
 
 export type AssetGridRouteSearchParams = {
@@ -23,6 +25,14 @@ export function getAssetInfoFromParam({ assetId }: { assetId?: string }) {
   if (!assetId) {
     return undefined;
   }
+
+  // Instant open: the grid already holds this file's metadata in memory —
+  // no network roundtrip (Google-Photos-style instant viewer).
+  const cached = mediaStore.findFile(assetId);
+  if (cached) {
+    return fileRecordToAssetDto(cached);
+  }
+
   return assetCacheManager.getAsset({ id: assetId }, false).catch((error: unknown) => {
     console.error('[getAssetInfoFromParam] failed to load asset', assetId, error);
     return undefined;

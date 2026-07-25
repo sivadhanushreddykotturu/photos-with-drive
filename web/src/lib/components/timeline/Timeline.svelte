@@ -26,6 +26,7 @@
   import { type AlbumResponseDto, type PersonResponseDto, type UserResponseDto } from '$lib/api/compat';
   import { DateTime } from 'luxon';
   import { onDestroy, onMount, tick, type Snippet } from 'svelte';
+  import { t } from 'svelte-i18n';
   import type { UpdatePayload } from 'vite';
 
   interface Props {
@@ -106,17 +107,110 @@
   const usingMobileDevice = $derived(mediaQueryManager.pointerCoarse);
 
   $effect(() => {
+    const saved = Number(localStorage.getItem('timeline-rowHeight'));
     const layoutOptions = maxMd
       ? {
-          rowHeight: 100,
-          headerHeight: 32,
+          rowHeight: saved || 130,
+          headerHeight: 40,
         }
       : {
-          rowHeight: 235,
+          rowHeight: saved || 235,
           headerHeight: 48,
         };
     timelineManager.setLayoutOptions(layoutOptions);
   });
+
+  // ------------------------------------------------------------------
+  // Pull-to-refresh + pinch-to-zoom (Google Photos style)
+  // ------------------------------------------------------------------
+  let pullStartY: number | null = $state(null);
+  let pullDistance = $state(0);
+  let refreshing = $state(false);
+  let pinchStartDistance = 0;
+  let pinchStartRowHeight = 235;
+  let pinchCenter = { x: 0, y: 0 };
+  let pinchExceedFrames = 0;
+
+  const PULL_TRIGGER = 70;
+
+  const touchDistance = (touches: TouchList) => {
+    const [a, b] = [touches[0], touches[1]];
+    return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+  };
+
+  const handleGridTouchStart = (event: TouchEvent) => {
+    if (event.touches.length === 2) {
+      pinchStartDistance = touchDistance(event.touches);
+      pinchStartRowHeight = timelineManager.rowHeight;
+      pinchCenter = {
+        x: (event.touches[0].clientX + event.touches[1].clientX) / 2,
+        y: (event.touches[0].clientY + event.touches[1].clientY) / 2,
+      };
+      pinchExceedFrames = 0;
+    } else if (event.touches.length === 1 && timelineManager.scrollTop <= 0 && !refreshing) {
+      pullStartY = event.touches[0].clientY;
+    }
+  };
+
+  const handleGridTouchMove = (event: TouchEvent) => {
+    if (event.touches.length === 2 && pinchStartDistance > 0) {
+      event.preventDefault();
+      const width = timelineManager.viewportWidth || 390;
+      const min = Math.max(60, width / 5.5); // ~5 columns
+      const max = Math.min(420, width / 1.8); // ~2 columns
+      const scale = touchDistance(event.touches) / pinchStartDistance;
+      let next = pinchStartRowHeight * scale;
+
+      // Sustained spreading past max density → open the tile under the gesture.
+      if (next >= max) {
+        pinchExceedFrames += 1;
+        if (pinchExceedFrames > 14) {
+          const tile = document.elementFromPoint(pinchCenter.x, pinchCenter.y)?.closest('[data-asset]');
+          const assetId = tile?.getAttribute('data-asset');
+          pinchStartDistance = 0;
+          pinchExceedFrames = 0;
+          if (assetId) {
+            void navigate({ targetRoute: 'current', assetId });
+          }
+          return;
+        }
+      }
+      timelineManager.setLayoutOptions({ rowHeight: Math.min(max, Math.max(min, next)) });
+      return;
+    }
+
+    if (pullStartY !== null && event.touches.length === 1) {
+      const dy = event.touches[0].clientY - pullStartY;
+      if (timelineManager.scrollTop <= 0 && dy > 0) {
+        pullDistance = Math.min(dy / 2, 120);
+      }
+    }
+  };
+
+  const handleGridTouchEnd = async () => {
+    if (pinchStartDistance > 0) {
+      pinchStartDistance = 0;
+      localStorage.setItem('timeline-rowHeight', String(Math.round(timelineManager.rowHeight)));
+    }
+    if (pullDistance > PULL_TRIGGER && !refreshing) {
+      refreshing = true;
+      try {
+        await timelineManager.reload();
+      } finally {
+        refreshing = false;
+      }
+    }
+    pullDistance = 0;
+    pullStartY = null;
+  };
+
+  // touchmove must be non-passive so pinch can preventDefault (blocks browser zoom).
+  const nonPassiveTouchMove = (node: HTMLElement, handler: (event: TouchEvent) => void) => {
+    node.addEventListener('touchmove', handler, { passive: false });
+    return {
+      destroy: () => node.removeEventListener('touchmove', handler),
+    };
+  };
 
   $effect(() => {
     timelineManager.scrollableElement = scrollableElement;
@@ -597,14 +691,33 @@
 <!-- Right margin MUST be equal to the width of scrubber -->
 <section
   id="asset-grid"
-  class={['h-full scrollbar-hidden overflow-y-auto outline-none', { 'm-0': isEmpty }, { 'ms-0': !isEmpty }]}
+  class={['relative h-full scrollbar-hidden overflow-y-auto outline-none', { 'm-0': isEmpty }, { 'ms-0': !isEmpty }]}
   style:margin-inline-end={(usingMobileDevice ? 0 : scrubberWidth) + 'px'}
+  style:touch-action="pan-y"
   tabindex="-1"
+  role="grid"
   bind:clientHeight={timelineManager.viewportHeight}
   bind:clientWidth={timelineManager.viewportWidth}
   bind:this={scrollableElement}
   onscroll={() => (handleTimelineScroll(), timelineManager.updateSlidingWindow(), updateIsScrolling())}
+  ontouchstart={handleGridTouchStart}
+  use:nonPassiveTouchMove={handleGridTouchMove}
+  ontouchend={handleGridTouchEnd}
+  ontouchcancel={handleGridTouchEnd}
 >
+  {#if pullDistance > 0 || refreshing}
+    <div class="pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center">
+      <div class="flex items-center gap-2 rounded-full bg-black/70 px-4 py-2 text-xs text-white">
+        {#if refreshing}
+          <span class="inline-block size-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+          {$t('syncing')}
+        {:else}
+          <span>{pullDistance > PULL_TRIGGER ? $t('release_to_refresh') : $t('pull_to_refresh')}</span>
+        {/if}
+      </div>
+    </div>
+  {/if}
+
   <section
     bind:this={timelineElement}
     id="virtual-timeline"

@@ -2357,5 +2357,8 @@
   "upload_file_too_large": "{file} ({size}) exceeds the 300 MB per-file limit.",
   "sign_out_everywhere": "Sign out everywhere",
   "signed_out_everywhere": "All sessions have been signed out. Sign in again to continue.",
-  "sign_out_link_invalid": "This sign-out link is invalid or has expired."
+  "sign_out_link_invalid": "This sign-out link is invalid or has expired.",
+  "syncing": "Syncing...",
+  "pull_to_refresh": "Pull to refresh",
+  "release_to_refresh": "Release to refresh"
 }

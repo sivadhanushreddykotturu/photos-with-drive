@@ -267,6 +267,15 @@ export class TimelineManager extends VirtualScrollManager {
     }
   }
 
+  /** Force a full data refetch + rebuild (pull-to-refresh). */
+  async reload() {
+    await mediaStore.invalidate();
+    await this.initTask.reset();
+    await this.#init(this.#options);
+    this.updateViewportGeometry(false);
+    this.#createScrubberMonths();
+  }
+
   async #init(options: TimelineManagerOptions) {
     this.isInitialized = false;
     this.months = [];

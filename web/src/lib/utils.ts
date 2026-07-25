@@ -184,8 +184,12 @@ export const getAssetUrl = ({
 };
 
 export function getAssetUrls(asset: AssetResponseDto, _sharedLink?: SharedLinkResponseDto) {
-  const url = getAssetMediaUrl({ id: asset.id });
-  return { thumbnail: url, preview: url, original: url };
+  return {
+    // First tier: the small Drive thumbnail (30-day cached — instant on open).
+    thumbnail: getAssetMediaUrl({ id: asset.id, size: AssetMediaSize.Thumbnail }),
+    preview: getAssetMediaUrl({ id: asset.id, size: AssetMediaSize.Preview }),
+    original: getAssetMediaUrl({ id: asset.id, size: AssetMediaSize.Original }),
+  };
 }
 
 const forceUseOriginal = (asset: AssetResponseDto) => {
