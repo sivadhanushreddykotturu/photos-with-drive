@@ -1,10 +1,10 @@
 <script lang="ts">
   import { locale } from '$lib/stores/preferences.store';
   import { uploadAssetsStore } from '$lib/stores/upload';
-  import { uploadExecutionQueue } from '$lib/utils/file-uploader';
+  import { cancelAllUploads, uploadExecutionQueue } from '$lib/utils/file-uploader';
   import { acquireWakeLock, releaseWakeLock } from '$lib/utils/wakelock.svelte';
   import { Icon, IconButton, toastManager } from '@immich/ui';
-  import { mdiCancel, mdiCloudUploadOutline, mdiCog, mdiWindowMinimize } from '@mdi/js';
+  import { mdiCancel, mdiCloseCircleMultipleOutline, mdiCloudUploadOutline, mdiCog, mdiWindowMinimize } from '@mdi/js';
   import { t } from 'svelte-i18n';
   import { quartInOut } from 'svelte/easing';
   import { fade, scale } from 'svelte/transition';
@@ -107,6 +107,18 @@
                 icon={mdiCancel}
                 size="small"
                 onclick={() => uploadAssetsStore.dismissErrors()}
+              />
+            {/if}
+            {#if hasRemaining}
+              <IconButton
+                variant="ghost"
+                shape="round"
+                color="danger"
+                aria-label={$t('cancel_all')}
+                title={$t('cancel_all')}
+                icon={mdiCloseCircleMultipleOutline}
+                size="small"
+                onclick={() => cancelAllUploads()}
               />
             {/if}
           </div>

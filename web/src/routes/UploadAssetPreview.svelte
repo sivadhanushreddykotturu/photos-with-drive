@@ -5,7 +5,7 @@
   import type { UploadAsset } from '$lib/types';
   import { UploadState } from '$lib/types';
   import { getByteUnitString } from '$lib/utils/byte-units';
-  import { fileUploadHandler } from '$lib/utils/file-uploader';
+  import { cancelUpload, fileUploadHandler } from '$lib/utils/file-uploader';
   import { Icon } from '@immich/ui';
   import {
     mdiAlertCircle,
@@ -27,7 +27,7 @@
   let { uploadAsset }: Props = $props();
 
   const handleDismiss = (uploadAsset: UploadAsset) => {
-    uploadAssetsStore.removeItem(uploadAsset.id);
+    cancelUpload(uploadAsset.id);
   };
 
   const handleRetry = async (uploadAsset: UploadAsset) => {
@@ -62,7 +62,20 @@
     <!-- <span>[{getByteUnitString(uploadAsset.file.size, $locale)}]</span> -->
     <span class="grow break-all">{uploadAsset.file.name}</span>
 
-    {#if uploadAsset.state === UploadState.DUPLICATED && uploadAsset.assetId}
+    {#if uploadAsset.state === UploadState.PENDING || uploadAsset.state === UploadState.STARTED}
+      <div class="flex items-center justify-between gap-1">
+        <button
+          type="button"
+          onclick={() => handleDismiss(uploadAsset)}
+          class=""
+          aria-hidden="true"
+          tabindex={-1}
+          title={$t('cancel')}
+        >
+          <Icon icon={mdiClose} size="20" />
+        </button>
+      </div>
+    {:else if uploadAsset.state === UploadState.DUPLICATED && uploadAsset.assetId}
       <div class="flex items-center justify-between gap-1">
         <a
           href={Route.viewAsset({ id: uploadAsset.assetId })}

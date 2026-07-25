@@ -2350,5 +2350,6 @@
   "send_code": "Email me a code",
   "code_sent_to": "If an account exists for {email}, a 6-digit code is on its way. It expires in 10 minutes.",
   "use_a_different_email": "Use a different email",
-  "resend_code": "Resend code"
+  "resend_code": "Resend code",
+  "cancel_all": "Cancel all"
 }

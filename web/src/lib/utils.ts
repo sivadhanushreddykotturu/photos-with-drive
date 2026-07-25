@@ -37,6 +37,7 @@ interface UploadRequestOptions {
   url: string;
   method?: 'POST' | 'PUT';
   data: FormData;
+  key?: string;
   onUploadProgress?: (event: ProgressEvent<XMLHttpRequestEventTarget>) => void;
 }
 
@@ -61,10 +62,10 @@ export const sleep = (ms: number) => {
 };
 
 let unsubscribeId = 0;
-const uploads: Record<number, () => void> = {};
+const uploads: Record<string, () => void> = {};
 
-const trackUpload = (unsubscribe: () => void) => {
-  const id = unsubscribeId++;
+const trackUpload = (unsubscribe: () => void, key?: string) => {
+  const id = key ?? String(unsubscribeId++);
   uploads[id] = unsubscribe;
   return () => {
     delete uploads[id];
@@ -75,6 +76,11 @@ export const cancelUploadRequests = () => {
   for (const unsubscribe of Object.values(uploads)) {
     unsubscribe();
   }
+};
+
+/** Abort a single in-flight upload by its key. */
+export const cancelUploadRequest = (key: string) => {
+  uploads[key]?.();
 };
 
 const setAuthHeader = (xhr: XMLHttpRequest) => {
@@ -88,11 +94,16 @@ export const uploadRequest = async <T>(options: UploadRequestOptions): Promise<{
   const { onUploadProgress: onProgress, data, url } = options;
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    const unsubscribe = trackUpload(() => xhr.abort());
+    const unsubscribe = trackUpload(() => xhr.abort(), options.key);
 
     xhr.addEventListener('error', (error) => {
       unsubscribe();
       reject(error);
+    });
+
+    xhr.addEventListener('abort', () => {
+      unsubscribe();
+      reject(new AbortError());
     });
 
     xhr.addEventListener('load', () => {

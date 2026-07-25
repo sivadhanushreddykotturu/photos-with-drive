@@ -8,7 +8,7 @@ import { eventManager } from '$lib/managers/event-manager.svelte';
 import { connectedAccountsStore } from '$lib/stores/connected-accounts.svelte';
 import { uploadAssetsStore } from '$lib/stores/upload';
 import { UploadState } from '$lib/types';
-import { uploadRequest } from '$lib/utils';
+import { cancelUploadRequest, cancelUploadRequests, uploadRequest } from '$lib/utils';
 import { ExecutorQueue } from '$lib/utils/executor-queue';
 import { handleError } from './handle-error';
 
@@ -130,12 +130,37 @@ function getDeviceAssetId(asset: File) {
   return 'web-' + asset.name + '-' + asset.lastModified;
 }
 
+// Ids the user cancelled — pending queue tasks no-op when they start.
+const cancelledUploads = new Set<string>();
+
+/** Cancel one upload (aborts the XHR if in-flight, no-ops its queued task otherwise). */
+export const cancelUpload = (deviceAssetId: string) => {
+  cancelledUploads.add(deviceAssetId);
+  cancelUploadRequest(deviceAssetId);
+  uploadAssetsStore.removeItem(deviceAssetId);
+};
+
+/** Cancel everything: pending + in-flight. */
+export const cancelAllUploads = () => {
+  for (const item of get(uploadAssetsStore)) {
+    cancelledUploads.add(item.id);
+  }
+  cancelUploadRequests();
+  uploadAssetsStore.reset();
+};
+
 type FileUploaderParams = {
   assetFile: File;
   deviceAssetId: string;
 };
 
 async function fileUploader({ assetFile, deviceAssetId }: FileUploaderParams): Promise<string | undefined> {
+  // Cancelled while waiting in the queue — no-op.
+  if (cancelledUploads.has(deviceAssetId)) {
+    cancelledUploads.delete(deviceAssetId);
+    return;
+  }
+
   const $t = get(t);
   const wasInitiallyLoggedIn = !!authManager.authenticated;
 
@@ -149,6 +174,7 @@ async function fileUploader({ assetFile, deviceAssetId }: FileUploaderParams): P
     const response = await uploadRequest<{ file: FileRecord }>({
       url: apiBaseUrl + '/files/upload',
       data: formData,
+      key: deviceAssetId,
       onUploadProgress: (event) => uploadAssetsStore.updateProgress(deviceAssetId, event.loaded, event.total),
     });
 
@@ -157,6 +183,7 @@ async function fileUploader({ assetFile, deviceAssetId }: FileUploaderParams): P
     }
 
     const record = response.data.file;
+    cancelledUploads.delete(deviceAssetId);
     uploadAssetsStore.track('success');
     uploadAssetsStore.updateItem(deviceAssetId, { state: UploadState.DONE, assetId: record.id });
 
@@ -169,6 +196,7 @@ async function fileUploader({ assetFile, deviceAssetId }: FileUploaderParams): P
 
     return record.id;
   } catch (error) {
+    cancelledUploads.delete(deviceAssetId);
     // If the user store no longer holds a user, it means they have logged out
     // In this case don't bother reporting any errors.
     if (wasInitiallyLoggedIn && !authManager.authenticated) {
