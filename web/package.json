@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@capacitor/android": "^8.4.2",
+    "@capacitor/app": "^8.1.1",
     "@formatjs/icu-messageformat-parser": "^3.0.0",
     "@immich/justified-layout-wasm": "^0.4.3",
     "@immich/ui": "^0.83.0",
@@ -42,6 +43,7 @@
     "thumbhash": "^0.1.1"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.4.2",
     "@capacitor/core": "^8.4.2",
     "@eslint/js": "^10.0.0",

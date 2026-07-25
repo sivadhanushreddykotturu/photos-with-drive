@@ -1,12 +1,15 @@
 <script lang="ts">
   import { afterNavigate, beforeNavigate } from '$app/navigation';
   import { page } from '$app/state';
+  import { Capacitor } from '@capacitor/core';
+  import { App as CapacitorApp } from '@capacitor/app';
   import { getPagesProvider, getSettingsProvider } from '$lib/commands';
   import DownloadPanel from './DownloadPanel.svelte';
   import ErrorLayout from './ErrorLayout.svelte';
   import OnEvents from '$lib/components/OnEvents.svelte';
   import NavigationLoadingBar from './NavigationLoadingBar.svelte';
   import UploadPanel from './UploadPanel.svelte';
+  import { assetViewerManager } from '$lib/managers/asset-viewer-manager.svelte';
   import { eventManager } from '$lib/managers/event-manager.svelte';
   import { lang, locale } from '$lib/stores/preferences.store';
   import { sidebarStore } from '$lib/stores/sidebar.svelte';
@@ -28,6 +31,22 @@
   interface Props {
     children?: Snippet;
   }
+
+  // Android back button/gesture: step through the app instead of killing it.
+  // Viewer open -> close it. Otherwise navigate back; at the root, background the app.
+  onMount(() => {
+    if (!Capacitor.isNativePlatform()) {
+      return;
+    }
+    const listener = CapacitorApp.addListener('backButton', ({ canGoBack }) => {
+      if (assetViewerManager.isViewing || canGoBack) {
+        window.history.back();
+      } else {
+        void CapacitorApp.minimizeApp();
+      }
+    });
+    return () => void listener.then((handle) => handle.remove());
+  });
 
   $effect(() => {
     setTranslations({

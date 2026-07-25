@@ -1,8 +1,10 @@
 {
-  "background_color": "#ffffff",
-  "description": "Self-hosted photo and video backup solution directly from your mobile phone.",
+  "background_color": "#0B1026",
+  "theme_color": "#0B1026",
+  "description": "Your photos from every drive, in one place.",
   "dir": "auto",
   "display": "standalone",
+  "orientation": "portrait",
   "icons": [
     {
       "purpose": "any",
@@ -24,8 +26,8 @@
     }
   ],
   "lang": "en",
-  "name": "Immich",
-  "short_name": "Immich",
+  "name": "PhotoDrive",
+  "short_name": "PhotoDrive",
   "shortcuts": [
     {
       "name": "Photos",
@@ -36,5 +38,6 @@
       "url": "/user-settings"
     }
   ],
-  "start_url": "/"
+  "start_url": "/",
+  "scope": "/"
 }
