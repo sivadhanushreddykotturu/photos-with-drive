@@ -10,6 +10,7 @@
   import NavigationLoadingBar from './NavigationLoadingBar.svelte';
   import UploadPanel from './UploadPanel.svelte';
   import { assetViewerManager } from '$lib/managers/asset-viewer-manager.svelte';
+  import { checkForAppUpdate } from '$lib/utils/app-update';
   import { eventManager } from '$lib/managers/event-manager.svelte';
   import { lang, locale } from '$lib/stores/preferences.store';
   import { sidebarStore } from '$lib/stores/sidebar.svelte';
@@ -90,6 +91,7 @@
   onMount(() => {
     const element = document.querySelector('#stencil');
     element?.remove();
+    void checkForAppUpdate();
   });
 
   eventManager.emit('AppInit');

@@ -2360,5 +2360,9 @@
   "sign_out_link_invalid": "This sign-out link is invalid or has expired.",
   "syncing": "Syncing...",
   "pull_to_refresh": "Pull to refresh",
-  "release_to_refresh": "Release to refresh"
+  "release_to_refresh": "Release to refresh",
+  "update_available": "Update available",
+  "update_available_description": "A new version ({version}) of PhotoDrive is available.",
+  "download_update": "Download update",
+  "later": "Later"
 }
