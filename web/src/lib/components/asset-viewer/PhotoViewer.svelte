@@ -1,6 +1,5 @@
 <script lang="ts">
   import { shortcuts } from '$lib/actions/shortcut';
-  import { zoomImageAction } from '$lib/actions/zoom-image';
   import AdaptiveImage from '$lib/components/AdaptiveImage.svelte';
   import AssetViewerEvents from '$lib/components/AssetViewerEvents.svelte';
   import { assetViewerManager } from '$lib/managers/asset-viewer-manager.svelte';
@@ -9,7 +8,6 @@
   import { handleError } from '$lib/utils/handle-error';
   import { toastManager } from '@immich/ui';
   import { untrack } from 'svelte';
-  import { useSwipe, type SwipeCustomEvent } from 'svelte-gestures';
   import { t } from 'svelte-i18n';
   import type { AssetCursor } from './AssetViewer.svelte';
 
@@ -18,10 +16,9 @@
     element?: HTMLDivElement;
     onReady?: () => void;
     onError?: () => void;
-    onSwipe?: (event: SwipeCustomEvent) => void;
   };
 
-  let { cursor, element = $bindable(), onReady, onError, onSwipe }: Props = $props();
+  let { cursor, element = $bindable(), onReady, onError }: Props = $props();
 
   const asset = $derived(cursor.current);
 
@@ -35,7 +32,6 @@
     }
     previousAssetId = id;
     untrack(() => {
-      assetViewerManager.resetZoomState();
       visibleImageReady = false;
     });
   });
@@ -61,11 +57,6 @@
     }
   };
 
-  const onZoom = () => {
-    const targetZoom = assetViewerManager.zoom > 1 ? 1 : 2;
-    assetViewerManager.animatedZoom(targetZoom);
-  };
-
   // TODO move to action + command palette
   const onCopyShortcut = (event: KeyboardEvent) => {
     // eslint-disable-next-line unicorn/no-unnecessary-global-this
@@ -76,15 +67,12 @@
 
     handlePromiseError(onCopy());
   };
-
-  let adaptiveImage = $state<HTMLDivElement | undefined>();
 </script>
 
-<AssetViewerEvents {onCopy} {onZoom} />
+<AssetViewerEvents {onCopy} />
 
 <svelte:document
   use:shortcuts={[
-    { shortcut: { key: 'z' }, onShortcut: onZoom, preventDefault: true },
     { shortcut: { key: 'c', ctrl: true }, onShortcut: onCopyShortcut, preventDefault: false },
     { shortcut: { key: 'c', meta: true }, onShortcut: onCopyShortcut, preventDefault: false },
   ]}
@@ -96,9 +84,6 @@
   bind:clientWidth={containerWidth}
   bind:clientHeight={containerHeight}
   role="presentation"
-  ondblclick={onZoom}
-  use:zoomImageAction={{ zoomTarget: adaptiveImage }}
-  {...useSwipe((event) => onSwipe?.(event))}
 >
   <AdaptiveImage
     {asset}
@@ -113,6 +98,5 @@
       onReady?.();
     }}
     bind:imgRef={assetViewerManager.imgRef}
-    bind:ref={adaptiveImage}
   />
 </div>

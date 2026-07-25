@@ -7,6 +7,7 @@
   import { addAssetsToAlbum, getAlbum, removeAssetsFromAlbum, type Album } from '$lib/api/albums';
   import { buildMediaUrl } from '$lib/api/client';
   import type { FileRecord } from '$lib/api/types';
+  import { assetViewerManager } from '$lib/managers/asset-viewer-manager.svelte';
   import { mediaStore } from '$lib/managers/timeline-manager/internal/media-store.svelte';
   import { Route } from '$lib/route';
   import { openFileUploadDialog } from '$lib/utils/file-uploader';
@@ -145,7 +146,11 @@
               thumbnailSize={200}
               readonly
               disableLinkMouseOver
-              onClick={() => goto(Route.viewAsset({ id: file.id }))}
+              onClick={() => {
+                // Remember where to return when the viewer closes.
+                assetViewerManager.returnPath = Route.viewAlbum({ id: albumId });
+                goto(Route.viewAsset({ id: file.id }));
+              }}
             />
             <div class="absolute top-1 right-1 opacity-0 transition-opacity group-hover:opacity-100">
               <IconButton

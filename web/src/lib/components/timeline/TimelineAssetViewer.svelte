@@ -2,6 +2,7 @@
   import type { Action } from '$lib/components/asset-viewer/actions/action';
   import AssetViewer, { type AssetCursor } from '$lib/components/asset-viewer/AssetViewer.svelte';
   import { AssetAction } from '$lib/constants';
+  import { goto } from '$app/navigation';
   import { assetViewerManager } from '$lib/managers/asset-viewer-manager.svelte';
   import { assetCacheManager } from '$lib/managers/AssetCacheManager.svelte';
   import { TimelineManager } from '$lib/managers/timeline-manager/timeline-manager.svelte';
@@ -72,6 +73,13 @@
 
   const handleClose = async (assetId: string) => {
     invisible = true;
+    // Opened from a non-timeline page (e.g. an album)? Return there instead.
+    const returnPath = assetViewerManager.returnPath;
+    if (returnPath) {
+      assetViewerManager.returnPath = null;
+      await goto(returnPath);
+      return;
+    }
     assetViewerManager.gridScrollTarget = { at: assetId };
     await navigate({
       targetRoute: 'current',

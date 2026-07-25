@@ -5,7 +5,6 @@
   import { AssetMediaSize, type AssetResponseDto } from '$lib/api/compat';
   import { Button, Icon, LoadingSpinner } from '@immich/ui';
   import { mdiAlertCircleOutline, mdiDownloadOutline } from '@mdi/js';
-  import { useSwipe, type SwipeCustomEvent } from 'svelte-gestures';
   import { t } from 'svelte-i18n';
   import 'media-chrome';
 
@@ -32,17 +31,6 @@
     }
   });
 
-  const onSwipe = (event: SwipeCustomEvent) => {
-    if (assetViewerManager.zoom > 1) {
-      return;
-    }
-    if (event.detail.direction === 'left') {
-      onNextAsset?.();
-    } else if (event.detail.direction === 'right') {
-      onPreviousAsset?.();
-    }
-  };
-
   const handleError = () => {
     // MEDIA_ERR_ABORTED fires on src swaps/navigation aborts — not a real failure.
     if (videoPlayer?.error?.code === MediaError.MEDIA_ERR_ABORTED) {
@@ -58,7 +46,7 @@
   };
 </script>
 
-<div class="relative size-full select-none" role="presentation" {...useSwipe((event) => onSwipe(event))}>
+<div class="relative size-full select-none" role="presentation">
   <media-controller class="block size-full">
     <video
       bind:this={videoPlayer}

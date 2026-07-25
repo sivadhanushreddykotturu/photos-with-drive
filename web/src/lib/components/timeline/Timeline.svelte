@@ -121,11 +121,12 @@
   });
 
   // ------------------------------------------------------------------
-  // Pull-to-refresh + pinch-to-zoom (Google Photos style)
+  // Pull-to-refresh (touch) + pinch-to-zoom (pointer events)
   // ------------------------------------------------------------------
   let pullStartY: number | null = $state(null);
   let pullDistance = $state(0);
   let refreshing = $state(false);
+
   let pinchStartDistance = 0;
   let pinchStartRowHeight = 235;
   let pinchCenter = { x: 0, y: 0 };
@@ -133,19 +134,22 @@
 
   const PULL_TRIGGER = 70;
 
-  const touchDistance = (touches: TouchList) => {
-    const [a, b] = [touches[0], touches[1]];
-    return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+  // On-screen density control (fallback for WebViews that swallow pinch moves).
+  const densityStep = (direction: 1 | -1) => {
+    const width = timelineManager.viewportWidth || 390;
+    const min = Math.max(60, width / 5.5);
+    const max = Math.min(420, width / 1.8);
+    const next = Math.min(max, Math.max(min, timelineManager.rowHeight + 40 * direction));
+    timelineManager.setLayoutOptions({ rowHeight: next });
+    localStorage.setItem('timeline-rowHeight', String(Math.round(next)));
   };
 
   const handleGridTouchStart = (event: TouchEvent) => {
     if (event.touches.length === 2) {
-      pinchStartDistance = touchDistance(event.touches);
+      const [a, b] = [event.touches[0], event.touches[1]];
+      pinchStartDistance = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
       pinchStartRowHeight = timelineManager.rowHeight;
-      pinchCenter = {
-        x: (event.touches[0].clientX + event.touches[1].clientX) / 2,
-        y: (event.touches[0].clientY + event.touches[1].clientY) / 2,
-      };
+      pinchCenter = { x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 };
       pinchExceedFrames = 0;
     } else if (event.touches.length === 1 && timelineManager.scrollTop <= 0 && !refreshing) {
       pullStartY = event.touches[0].clientY;
@@ -153,15 +157,16 @@
   };
 
   const handleGridTouchMove = (event: TouchEvent) => {
+    // Pinch: two-finger spread/pinch changes grid density.
     if (event.touches.length === 2 && pinchStartDistance > 0) {
-      event.preventDefault();
+      const [a, b] = [event.touches[0], event.touches[1]];
+      const distance = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
       const width = timelineManager.viewportWidth || 390;
       const min = Math.max(60, width / 5.5); // ~5 columns
       const max = Math.min(420, width / 1.8); // ~2 columns
-      const scale = touchDistance(event.touches) / pinchStartDistance;
-      let next = pinchStartRowHeight * scale;
+      const scale = distance / pinchStartDistance;
+      const next = pinchStartRowHeight * scale;
 
-      // Sustained spreading past max density → open the tile under the gesture.
       if (next >= max) {
         pinchExceedFrames += 1;
         if (pinchExceedFrames > 14) {
@@ -202,14 +207,6 @@
     }
     pullDistance = 0;
     pullStartY = null;
-  };
-
-  // touchmove must be non-passive so pinch can preventDefault (blocks browser zoom).
-  const nonPassiveTouchMove = (node: HTMLElement, handler: (event: TouchEvent) => void) => {
-    node.addEventListener('touchmove', handler, { passive: false });
-    return {
-      destroy: () => node.removeEventListener('touchmove', handler),
-    };
   };
 
   $effect(() => {
@@ -701,10 +698,30 @@
   bind:this={scrollableElement}
   onscroll={() => (handleTimelineScroll(), timelineManager.updateSlidingWindow(), updateIsScrolling())}
   ontouchstart={handleGridTouchStart}
-  use:nonPassiveTouchMove={handleGridTouchMove}
+  ontouchmove={handleGridTouchMove}
   ontouchend={handleGridTouchEnd}
   ontouchcancel={handleGridTouchEnd}
 >
+  <!-- On-screen density control -->
+  <div class="absolute bottom-3 right-3 z-10 flex flex-col gap-1">
+    <button
+      type="button"
+      class="flex size-9 items-center justify-center rounded-full bg-black/60 text-lg text-white"
+      onclick={() => densityStep(1)}
+      aria-label="Zoom in"
+    >
+      +
+    </button>
+    <button
+      type="button"
+      class="flex size-9 items-center justify-center rounded-full bg-black/60 text-lg text-white"
+      onclick={() => densityStep(-1)}
+      aria-label="Zoom out"
+    >
+      −
+    </button>
+  </div>
+
   {#if pullDistance > 0 || refreshing}
     <div class="pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center">
       <div class="flex items-center gap-2 rounded-full bg-black/70 px-4 py-2 text-xs text-white">

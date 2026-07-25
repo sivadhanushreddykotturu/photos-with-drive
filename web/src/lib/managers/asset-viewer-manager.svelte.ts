@@ -39,6 +39,8 @@ class AssetViewerManager extends BaseEventManager<Events> {
   #viewingAssetStoreState = $state<AssetResponseDto>();
   #viewState = $state<boolean>(false);
   gridScrollTarget = $state<AssetGridRouteSearchParams | null | undefined>();
+  /** Where to return when the viewer closes (e.g. an album page); null = default timeline. */
+  returnPath = $state<string | null>(null);
 
   get asset() {
     return this.#viewingAssetStoreState;

@@ -6,6 +6,13 @@
 
 @custom-variant dark (&:where(.dark, .dark *):not(.light));
 
+/* Let the app own two-finger gestures (pinch zoom) on the timeline grid:
+   touch-action is NOT inherited, so it must be set on the tiles themselves. */
+#asset-grid,
+#asset-grid * {
+  touch-action: pan-y;
+}
+
 @theme inline {
   --color-immich-primary: rgb(var(--immich-primary));
   --color-immich-bg: rgb(var(--immich-bg));

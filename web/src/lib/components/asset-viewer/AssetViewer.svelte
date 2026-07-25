@@ -14,7 +14,6 @@
   import { InvocationTracker } from '$lib/utils/invocationTracker';
   import { AssetTypeEnum, type AssetResponseDto } from '$lib/api/compat';
   import { onDestroy, onMount } from 'svelte';
-  import type { SwipeCustomEvent } from 'svelte-gestures';
   import { t } from 'svelte-i18n';
   import PhotoViewer from './PhotoViewer.svelte';
   import VideoViewer from './VideoWrapperViewer.svelte';
@@ -123,16 +122,36 @@
 
   const viewerKind = $derived(asset.type === AssetTypeEnum.Video ? 'VideoViewer' : 'PhotoViewer');
 
-  const onSwipe = (event: SwipeCustomEvent) => {
-    if (assetViewerManager.zoom > 1) {
+  // Swipe-to-advance, owned at the viewer root (the zoom-image library used to
+  // capture pointers and swallow the gesture).
+  let swipeStart: { x: number; y: number; time: number } | null = $state(null);
+  let swipeHandled = false;
+
+  const handleSwipeStart = (event: PointerEvent) => {
+    if (event.pointerType === 'mouse') {
       return;
     }
+    swipeStart = { x: event.clientX, y: event.clientY, time: Date.now() };
+    swipeHandled = false;
+  };
 
-    if (event.detail.direction === 'left') {
-      navigateAsset('next');
-    } else if (event.detail.direction === 'right') {
-      navigateAsset('previous');
+  const handleSwipeMove = (event: PointerEvent) => {
+    if (!swipeStart || swipeHandled) {
+      return;
     }
+    const dx = event.clientX - swipeStart.x;
+    const dy = event.clientY - swipeStart.y;
+    // Fast, mostly-horizontal fling.
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5 && Date.now() - swipeStart.time < 800) {
+      swipeHandled = true;
+      swipeStart = null;
+      navigateAsset(dx < 0 ? 'next' : 'previous');
+    }
+  };
+
+  const handleSwipeEnd = () => {
+    swipeStart = null;
+    swipeHandled = false;
   };
 </script>
 
@@ -142,7 +161,15 @@
 <section
   id="immich-asset-viewer"
   class="fixed inset-s-0 top-0 grid size-full grid-cols-4 grid-rows-[64px_1fr] overflow-hidden bg-black"
+  style:touch-action="pan-y"
+  role="dialog"
+  aria-modal="true"
+  tabindex="-1"
   use:focusTrap
+  onpointerdown={handleSwipeStart}
+  onpointermove={handleSwipeMove}
+  onpointerup={handleSwipeEnd}
+  onpointercancel={handleSwipeEnd}
 >
   <!-- Top navigation bar -->
   <div class="col-span-4 col-start-1 row-span-1 row-start-1 transition-transform">
@@ -164,7 +191,7 @@
   <!-- Asset Viewer -->
   <div data-viewer-content class="relative z-[-1] col-span-4 col-start-1 row-span-full row-start-1">
     {#if viewerKind === 'PhotoViewer'}
-      <PhotoViewer cursor={{ ...cursor, current: asset }} {onSwipe} />
+      <PhotoViewer cursor={{ ...cursor, current: asset }} />
     {:else}
       <VideoViewer
         {asset}
