@@ -8,6 +8,24 @@ PhotoDrive is a self-hostable photo & video cloud that pools **multiple Google D
 
 ---
 
+## Use cases
+
+**📤 Upload from anywhere.** Phone at a wedding (APK), laptop at home (web), iPad (PWA), a friend's computer (browser) — every photo lands in the same library, seconds later. Log in on any device and it's all there.
+
+**🧩 Turn free Gmail accounts into one big drive.** Each Google account gives 15 GB free. Connect three and your library is 45 GB — the app always uploads to the account with the most room, so storage grows as your photos do.
+
+**🔐 Your photos, not someone else's cloud.** Bytes never sit on our servers — uploads *stream through* to your own Google Drive and stay there. Delete the app tomorrow, your Drive still has every original.
+
+**👨‍👩‍👧 Share without accounts.** Pick a photo or a whole album, send a link that expires in a day/week/month. Grandma opens it on her iPhone — no login, no install, just the gallery.
+
+**💀 Phone dies, photos don't.** Lose or replace your phone — sign in on the new one and your entire library is intact, because it never lived on the phone in the first place.
+
+**👨‍👩‍👧‍👦 Everyone gets their own private space.** Each person registers their own account and connects their own Drives — one hosted backend, fully isolated libraries.
+
+**🎥 Backup that respects your data plan.** Uploads stream one-at-a-time on big files, thumbnails are tiny and cached for a month — the grid stays fast even on weak connections.
+
+---
+
 ## How it works
 
 ```
