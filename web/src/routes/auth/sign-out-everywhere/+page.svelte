@@ -1,7 +1,8 @@
 <script lang="ts">
   import { page } from '$app/state';
   import AuthPageLayout from '$lib/components/layouts/AuthPageLayout.svelte';
-  import { apiFetch } from '$lib/api/client';
+  import { apiFetch, setAccessToken, setRefreshToken } from '$lib/api/client';
+  import { authManager } from '$lib/managers/auth-manager.svelte';
   import { Route } from '$lib/route';
   import { Alert, Button, LoadingSpinner } from '@immich/ui';
   import { onMount } from 'svelte';
@@ -10,6 +11,12 @@
   let viewState: 'loading' | 'success' | 'error' = $state('loading');
 
   onMount(async () => {
+    // Kill the local session too — revoking server-side tokens doesn't touch the
+    // in-memory access token/auth state, which otherwise looks alive until expiry.
+    setAccessToken(null);
+    setRefreshToken(null);
+    authManager.reset();
+
     const token = page.url.searchParams.get('token') ?? '';
     if (!token) {
       viewState = 'error';

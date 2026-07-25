@@ -9,7 +9,7 @@ import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../utils/
 import { hashToken, randomToken } from '../services/encryption.service.js'
 import { sendLoginOtpEmail, sendNewLoginEmail, sendPasswordResetEmail, sendVerificationEmail } from '../services/email.service.js'
 import { ApiError } from '../utils/api-error.js'
-import type { AuthRequest } from '../middleware/auth.middleware.js'
+import { invalidateTokenVersionCache, type AuthRequest } from '../middleware/auth.middleware.js'
 
 const emailField = z.string().trim().toLowerCase().email()
 
@@ -108,7 +108,7 @@ async function createSession(user: UserDocument, req: Request, res: Response) {
   await user.save()
 
   setRefreshCookie(res, refreshToken)
-  return { accessToken: signAccessToken({ sub: user._id.toString() }), refreshToken }
+  return { accessToken: signAccessToken({ sub: user._id.toString(), tv: user.tokenVersion }), refreshToken }
 }
 
 function readRefreshToken(req: Request) {
@@ -290,7 +290,9 @@ export async function resetPassword(req: Request, res: Response, next: NextFunct
 
     user.hashedPassword = await hashPassword(body.password)
     user.refreshTokens = [] // Invalidate all existing sessions.
+    user.tokenVersion += 1 // Kill every live access token instantly.
     await user.save()
+    invalidateTokenVersionCache(user._id.toString())
 
     res.clearCookie(REFRESH_COOKIE, { path: '/auth' })
     return res.json({ status: 'ok' })
@@ -357,7 +359,9 @@ export async function revokeSessions(req: Request, res: Response, next: NextFunc
     user.refreshTokens = []
     user.passwordResetToken = undefined
     user.passwordResetExpires = undefined
+    user.tokenVersion += 1 // Kill every live access token instantly.
     await user.save()
+    invalidateTokenVersionCache(user._id.toString())
 
     res.clearCookie(REFRESH_COOKIE, { path: '/auth' })
     return res.json({ status: 'ok' })
