@@ -3,6 +3,8 @@ import mongoose, { Schema, type HydratedDocument, type Model, type Types } from 
 export interface IImageMediaMetadata {
   width?: number
   height?: number
+  /** Drive rotation enum (0=0°, 1=90°, 2=180°, 3=270°) from EXIF orientation. */
+  rotation?: number
 }
 
 export interface IVideoMediaMetadata {
@@ -34,6 +36,7 @@ const imageMediaMetadataSchema = new Schema<IImageMediaMetadata>(
   {
     width: { type: Number },
     height: { type: Number },
+    rotation: { type: Number },
   },
   { _id: false },
 )

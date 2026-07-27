@@ -62,6 +62,19 @@ function serializeFile(file: FileRecordDocument) {
   }
 }
 
+// Drive rotation enum: 0=0°, 1=90°, 2=180°, 3=270° (from EXIF orientation).
+// When the photo is rotated 90°/270°, the DISPLAY dims are the swap of the
+// stored pixel dims — the grid's aspect ratio depends on it.
+function displayImageMetadata(meta: { width?: number | null; height?: number | null; rotation?: number | null }) {
+  const rotation = meta.rotation ?? 0
+  const swap = rotation === 1 || rotation === 3
+  return {
+    width: (swap ? meta.height : meta.width) ?? undefined,
+    height: (swap ? meta.width : meta.height) ?? undefined,
+    rotation: rotation || undefined,
+  }
+}
+
 function parseFolderId(raw: string | null | undefined) {
   if (raw === undefined || raw === null || raw === '' || raw === 'root') return null
   if (!mongoose.isValidObjectId(raw)) throw ApiError.badRequest('INVALID_FOLDER_ID', 'Invalid folderId.')
@@ -228,7 +241,7 @@ export function uploadFile(req: AuthRequest, res: Response, next: NextFunction) 
           size: driveFile.size ? Number(driveFile.size) : approxSize,
           thumbnailLink: driveFile.thumbnailLink ?? undefined,
           imageMediaMetadata: driveFile.imageMediaMetadata
-            ? { width: driveFile.imageMediaMetadata.width ?? undefined, height: driveFile.imageMediaMetadata.height ?? undefined }
+            ? displayImageMetadata(driveFile.imageMediaMetadata)
             : undefined,
           videoMediaMetadata: driveFile.videoMediaMetadata?.durationMillis
             ? { duration: Number(driveFile.videoMediaMetadata.durationMillis) }
@@ -335,10 +348,7 @@ export async function getFile(req: AuthRequest, res: Response, next: NextFunctio
         const auth = await getAuthedGoogleClient(account)
         const metadata = await getDriveMediaMetadata(auth, file.driveFileId)
         if (metadata?.imageMediaMetadata && (metadata.imageMediaMetadata.width || metadata.imageMediaMetadata.height)) {
-          file.imageMediaMetadata = {
-            width: metadata.imageMediaMetadata.width ?? undefined,
-            height: metadata.imageMediaMetadata.height ?? undefined,
-          }
+          file.imageMediaMetadata = displayImageMetadata(metadata.imageMediaMetadata)
         }
         if (metadata?.videoMediaMetadata?.durationMillis) {
           file.videoMediaMetadata = { duration: Number(metadata.videoMediaMetadata.durationMillis) }
@@ -625,10 +635,7 @@ export async function syncGoogleFiles(req: AuthRequest, res: Response, next: Nex
             record.thumbnailLink = driveFile.thumbnailLink ?? undefined
             if (duration !== undefined) record.videoMediaMetadata = { duration }
             if (driveFile.imageMediaMetadata) {
-              record.imageMediaMetadata = {
-                width: driveFile.imageMediaMetadata.width ?? undefined,
-                height: driveFile.imageMediaMetadata.height ?? undefined,
-              }
+              record.imageMediaMetadata = displayImageMetadata(driveFile.imageMediaMetadata)
             }
             await record.save()
             updated += 1
@@ -678,7 +685,7 @@ function driveFileToRecord(
     size: driveFile.size ? Number(driveFile.size) : 0,
     thumbnailLink: driveFile.thumbnailLink ?? undefined,
     imageMediaMetadata: driveFile.imageMediaMetadata
-      ? { width: driveFile.imageMediaMetadata.width ?? undefined, height: driveFile.imageMediaMetadata.height ?? undefined }
+      ? displayImageMetadata(driveFile.imageMediaMetadata)
       : undefined,
     videoMediaMetadata: driveFile.videoMediaMetadata?.durationMillis
       ? { duration: Number(driveFile.videoMediaMetadata.durationMillis) }
